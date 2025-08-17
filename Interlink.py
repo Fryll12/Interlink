@@ -1,8 +1,9 @@
-# app.py
+# Interlink.py (đã sửa lỗi)
 import os
 import json
 import discord
 import requests
+import aiohttp # <--- LỖI 1: Thư viện này bị thiếu
 import threading
 from discord.ext import commands
 from flask import Flask, request, redirect
@@ -13,10 +14,10 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
 CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
-OWNER_ID = int(os.getenv('OWNER_ID', 0)) # Lấy owner_id từ .env
+OWNER_ID = int(os.getenv('OWNER_ID', 0))
 
-if TOKEN is None or OWNER_ID == 0:
-    exit("LỖI: Hãy chắc chắn DISCORD_TOKEN và OWNER_ID đã được thiết lập trong file .env")
+if not all([TOKEN, CLIENT_ID, CLIENT_SECRET, OWNER_ID]):
+    exit("LỖI: Hãy chắc chắn DISCORD_TOKEN, CLIENT_ID, CLIENT_SECRET, và OWNER_ID đã được thiết lập trong file .env")
 
 # ==============================================================================
 # PHẦN 1: CODE CỦA BOT DISCORD
@@ -57,7 +58,6 @@ async def on_ready():
 @bot.command(name='force_add', help='Thêm một người dùng vào tất cả các server.')
 @commands.is_owner()
 async def force_add(ctx, user_id_str: str):
-    # ... (toàn bộ code của lệnh force_add giữ nguyên như cũ) ...
     try:
         user_id = int(user_id_str)
     except ValueError:
@@ -76,8 +76,7 @@ async def force_add(ctx, user_id_str: str):
     success_count = 0
     fail_count = 0
     for guild in bot.guilds:
-        # Code của bạn sử dụng aiohttp nên chúng ta cần import nó
-        import aiohttp 
+        # LỖI 2: Không cần import aiohttp ở đây nữa vì đã import ở trên cùng
         success, message = await add_member_to_guild(guild.id, user_id, access_token)
         if success:
             print(f"👍 Thêm thành công {user_to_add.name} vào server {guild.name}: {message}")
@@ -94,8 +93,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    # Lấy RENDER_EXTERNAL_URL từ biến môi trường, nếu không có thì dùng localhost
-    redirect_uri = os.environ.get('RENDER_EXTERNAL_URL', 'http://127.0.0.1:5000') + '/callback'
+    redirect_uri = os.environ.get('RENDER_EXTERNAL_URL', f'http://127.0.0.1:5000') + '/callback'
     auth_url = (
         f'https://discord.com/api/oauth2/authorize?client_id={CLIENT_ID}'
         f'&redirect_uri={redirect_uri}&response_type=code&scope=identify%20guilds.join'
@@ -105,7 +103,8 @@ def index():
 @app.route('/callback')
 def callback():
     code = request.args.get('code')
-    redirect_uri = os.environ.get('RENDER_EXTERNAL_URL', 'http://127.0.0.1:5000') + '/callback'
+    redirect_uri = os.environ.get('RENDER_EXTERNAL_URL', f'http://127.0.0.1:5000') + '/callback'
+    # ... (phần còn lại của hàm callback giữ nguyên) ...
     token_url = 'https://discord.com/api/v10/oauth2/token'
     payload = {
         'client_id': CLIENT_ID,
@@ -117,7 +116,9 @@ def callback():
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     token_response = requests.post(token_url, data=payload, headers=headers)
     token_data = token_response.json()
-    access_token = token_data['access_token']
+    access_token = token_data.get('access_token') # Dùng .get() để tránh lỗi nếu không có token
+    if not access_token:
+        return f"<h1>Lỗi</h1><p>Không thể lấy access token từ Discord. Phản hồi: {token_data}</p>"
     user_info_url = 'https://discord.com/api/v10/users/@me'
     headers = {'Authorization': f'Bearer {access_token}'}
     user_response = requests.get(user_info_url, headers=headers)
@@ -135,19 +136,20 @@ def callback():
     return f'<h1>Thành công!</h1><p>Cảm ơn {username}, bạn đã ủy quyền thành công cho bot.</p>'
 
 def run_flask():
+    # Lấy cổng từ Render, nếu chạy ở local thì mặc định là 5000
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
 
 # ==============================================================================
 # PHẦN 3: CHẠY CẢ HAI
 # ==============================================================================
+if __name__ == "__main__":
+    # Chạy web server trong một luồng (thread) riêng
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    print(">>> Web server đã khởi động trong luồng nền.")
 
-# Chạy web server trong một luồng (thread) riêng
-flask_thread = threading.Thread(target=run_flask)
-flask_thread.daemon = True
-flask_thread.start()
-print(">>> Web server đã khởi động trong luồng nền.")
-
-# Chạy bot trong luồng chính
-print(">>> Đang khởi động bot Discord...")
-bot.run(TOKEN)
+    # Chạy bot trong luồng chính
+    print(">>> Đang khởi động bot Discord...")
+    bot.run(TOKEN)
