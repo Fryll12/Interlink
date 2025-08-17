@@ -212,7 +212,99 @@ async def add_member_to_guild(guild_id: int, user_id: int, access_token: str):
             else:
                 error_text = await response.text()
                 return False, f"HTTP {response.status}: {error_text}"
+                
+# --- INTERACTIVE UI COMPONENTS ---
 
+# Lớp này định nghĩa giao diện lựa chọn server
+class ServerSelectView(discord.ui.View):
+    def __init__(self, author: discord.User, target_user: discord.User, guilds: list[discord.Guild]):
+        super().__init__(timeout=180)  # Giao diện sẽ hết hạn sau 180 giây
+        self.author = author
+        self.target_user = target_user
+        self.guilds = guilds
+        self.selected_guilds = []
+
+        # Tạo menu thả xuống (Select)
+        self.add_item(self.create_server_select())
+
+    def create_server_select(self):
+        # Tạo các lựa chọn cho menu, mỗi lựa chọn là một server
+        options = [
+            discord.SelectOption(label=guild.name, value=str(guild.id), emoji='🖥️')
+            for guild in self.guilds
+        ]
+        
+        server_select = discord.ui.Select(
+            placeholder="Chọn các server bạn muốn mời vào...",
+            min_values=1,
+            max_values=len(self.guilds), # Cho phép chọn nhiều server
+            options=options
+        )
+        
+        # Gắn hàm callback để xử lý khi người dùng chọn
+        server_select.callback = self.on_server_select
+        return server_select
+
+    async def on_server_select(self, interaction: discord.Interaction):
+        # Hàm này được gọi khi có lựa chọn trong menu
+        # Chỉ chủ bot mới có thể tương tác
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message("Bạn không có quyền tương tác với menu này.", ephemeral=True)
+            return
+
+        # Lưu lại danh sách ID của các server đã chọn
+        self.selected_guilds = [int(value) for value in interaction.data['values']]
+        await interaction.response.defer() # Báo cho Discord biết bot đã nhận được tương tác
+
+    @discord.ui.button(label="Summon", style=discord.ButtonStyle.green, emoji="✨")
+    async def summon_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Hàm này được gọi khi nút "Summon" được bấm
+        # Chỉ chủ bot mới có thể tương tác
+        if interaction.user.id != self.author.id:
+            await interaction.response.send_message("Bạn không có quyền sử dụng nút này.", ephemeral=True)
+            return
+        
+        if not self.selected_guilds:
+            await interaction.response.send_message("Bạn chưa chọn server nào cả!", ephemeral=True)
+            return
+
+        # Vô hiệu hóa giao diện sau khi bấm
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        await interaction.followup.send(f"✅ Đã nhận lệnh! Bắt đầu mời **{self.target_user.name}** vào **{len(self.selected_guilds)}** server đã chọn...")
+
+        # Bắt đầu quá trình mời
+        access_token = get_user_access_token(self.target_user.id)
+        if not access_token:
+            await interaction.followup.send(f"❌ Người dùng **{self.target_user.name}** chưa ủy quyền cho bot.")
+            return
+
+        success_count = 0
+        fail_count = 0
+        
+        for guild_id in self.selected_guilds:
+            guild = bot.get_guild(guild_id)
+            if not guild: continue
+            
+            try:
+                success, message = await add_member_to_guild(guild.id, self.target_user.id, access_token)
+                if success:
+                    print(f"👍 Thêm thành công {self.target_user.name} vào server {guild.name}")
+                    success_count += 1
+                else:
+                    print(f"👎 Lỗi khi thêm vào {guild.name}: {message}")
+                    fail_count += 1
+            except Exception as e:
+                print(f"👎 Lỗi không xác định khi thêm vào {guild.name}: {e}")
+                fail_count += 1
+        
+        embed = discord.Embed(title=f"📊 Kết quả mời {self.target_user.name}", color=0x00ff00)
+        embed.add_field(name="✅ Thành công", value=f"{success_count} server", inline=True)
+        embed.add_field(name="❌ Thất bại", value=f"{fail_count} server", inline=True)
+        await interaction.followup.send(embed=embed)
+        
 # --- DISCORD BOT EVENTS ---
 @bot.event
 async def on_ready():
@@ -221,6 +313,11 @@ async def on_ready():
     print(f'🔑 Redirect URI: {REDIRECT_URI}')
     db_status = "Connected" if get_db_connection() else "JSON Fallback"
     print(f'💾 Database: {db_status}')
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Đã đồng bộ {len(synced)} lệnh slash.")
+    except Exception as e:
+        print(f"❌ Không thể đồng bộ lệnh slash: {e}")
     print('------')
 
 # --- DISCORD BOT COMMANDS ---
@@ -382,6 +479,48 @@ async def force_add_error(ctx, error):
         print(f"Lỗi khi thực thi lệnh force_add: {error}")
         await ctx.send(f"Đã có lỗi xảy ra khi thực thi lệnh. Vui lòng kiểm tra console.")
         
+@bot.command(name='invite', help='(Chủ bot) Mở giao diện để chọn server mời người dùng vào.')
+@commands.is_owner()
+async def invite(ctx, user_to_add: discord.User):
+    """
+    Mở một giao diện tương tác để chọn server mời người dùng.
+    """
+    if not user_to_add:
+        await ctx.send("Không tìm thấy người dùng này.")
+        return
+        
+    # Tạo giao diện (View) và truyền các thông tin cần thiết
+    view = ServerSelectView(author=ctx.author, target_user=user_to_add, guilds=bot.guilds)
+    
+    embed = discord.Embed(
+        title=f"💌 Mời {user_to_add.name}",
+        description="Hãy chọn các server bạn muốn mời người này vào từ menu bên dưới, sau đó nhấn nút 'Summon'.",
+        color=0x0099ff
+    )
+    embed.set_thumbnail(url=user_to_add.display_avatar.url)
+    
+    await ctx.send(embed=embed, view=view)
+
+# --- SLASH COMMANDS ---
+@bot.tree.command(name="help", description="Hiển thị thông tin về các lệnh của bot")
+async def help_slash(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🤖 Trợ giúp về lệnh của Interlink Bot",
+        description="Dưới đây là danh sách các lệnh bạn có thể sử dụng:",
+        color=discord.Color.blue()
+    )
+    
+    embed.add_field(name="`!auth`", value="Gửi cho bạn link để ủy quyền cho bot.", inline=False)
+    embed.add_field(name="`!add_me`", value="Tự thêm chính bạn vào tất cả các server sau khi đã ủy quyền.", inline=False)
+    embed.add_field(name="`!check_token`", value="Kiểm tra xem bạn đã ủy quyền cho bot hay chưa.", inline=False)
+    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và các dịch vụ.", inline=False)
+    embed.add_field(name="`!invite <User ID/@User>`", value="**(Chủ bot)** Mở giao diện để chọn server mời một người dùng.", inline=False)
+    embed.add_field(name="`!force_add <User ID/@User>`", value="**(Chủ bot)** Thêm một người dùng vào TẤT CẢ các server.", inline=False)
+    
+    embed.set_footer(text="Bot được phát triển với sự hỗ trợ của AI.")
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True) # ephemeral=True chỉ gửi cho người dùng lệnh
+    
 # --- FLASK WEB ROUTES ---
 @app.route('/')
 def index():
@@ -576,4 +715,5 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
