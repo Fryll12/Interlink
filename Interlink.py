@@ -878,7 +878,7 @@ def index():
             }}
             
             body {{
-                font-family: 'Griffy', cursive;
+                font-family: Arial, Helvetica, sans-serif;
                 background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
                 color: #e0e0e0;
                 min-height: 100vh;
@@ -1016,7 +1016,7 @@ def index():
                 padding: 5px 15px;
                 border-radius: 0;
                 transform: rotate(12deg);
-                font-family: 'Griffy', cursive;
+                font-family: Arial, Helvetica, sans-serif;
                 font-weight: bold;
                 font-size: 0.9em;
                 box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.6);
@@ -1030,7 +1030,7 @@ def index():
                 padding: 20px 40px;
                 text-decoration: none;
                 border-radius: 10px;
-                font-family: 'Griffy', cursive;
+                font-family: Arial, Helvetica, sans-serif;
                 font-size: 1.3em;
                 font-weight: bold;
                 letter-spacing: 2px;
@@ -1501,7 +1501,7 @@ def callback():
                 padding: 10px 20px;
                 border-radius: 0;
                 transform: rotate(-8deg);
-                font-family: 'Griffy', cursive;
+                font-family: Arial, Helvetica, sans-serif;
                 font-weight: bold;
                 font-size: 1.1em;
                 box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.7);
@@ -1731,7 +1731,7 @@ def callback():
             <div class="success-icon">✅</div>
             <h1 class="success-title">MISSION ACCOMPLISHED</h1>
             <p class="agent-welcome">Welcome to the Bureau, Agent <strong>{username}</strong>!</p>
-            
+            <p style="color: #b9bbbe; font-size: 1.1em; margin-top: -15px;">AGENT ID: <strong>{user_id}</strong></p>
             <div class="info-classified">
                 <h3 class="classified-header">🔐 CREDENTIALS SECURED</h3>
                 <div class="storage-info">
@@ -1843,5 +1843,6 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
