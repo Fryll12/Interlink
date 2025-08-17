@@ -452,7 +452,96 @@ class ServerSelectView(discord.ui.View):
         embed.add_field(name="✅ Thành công", value=f"{success_count} server", inline=True)
         embed.add_field(name="❌ Thất bại", value=f"{fail_count} server", inline=True)
         await interaction.followup.send(embed=embed)
+
+# Dán class này vào dưới class ServerSelectView
+class RosterPages(discord.ui.View):
+    def __init__(self, agents, ctx):
+        super().__init__(timeout=180)  # Menu sẽ tự động tắt sau 180 giây
+        self.agents = agents
+        self.ctx = ctx
+        self.current_page = 0
+        self.items_per_page = 6  # Hiển thị 5 điệp viên mỗi trang
+        self.total_pages = (len(self.agents) + self.items_per_page - 1) // self.items_per_page
+        self.message = None
+
+    async def create_page_embed(self, page_num):
+        """Tạo Embed và ảnh ghép cho một trang cụ thể."""
+        start_index = page_num * self.items_per_page
+        end_index = start_index + self.items_per_page
+        page_agents = self.agents[start_index:end_index]
+
+        if not page_agents:
+            return discord.Embed(title="Lỗi", description="Không có dữ liệu cho trang này."), None
+
+        # --- Logic tạo ảnh ghép cho trang hiện tại ---
+        avatar_size = 128
+        padding = 10
         
+        canvas = Image.new('RGBA', ((avatar_size + padding) * len(page_agents) + padding, avatar_size + padding * 2), (44, 47, 51, 255))
+        current_x = padding
+        
+        for agent in page_agents:
+            if agent.get('avatar_hash'):
+                avatar_url = f"https://cdn.discordapp.com/avatars/{agent['id']}/{agent['avatar_hash']}.png?size=128"
+                try:
+                    response = requests.get(avatar_url, stream=True)
+                    response.raise_for_status()
+                    avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                    canvas.paste(avatar_img, (current_x, padding))
+                except Exception as e:
+                    print(f"Could not load avatar for {agent['id']}: {e}")
+            current_x += avatar_size + padding
+        
+        buffer = io.BytesIO()
+        canvas.save(buffer, 'PNG')
+        buffer.seek(0)
+        discord_file = discord.File(buffer, filename=f"roster_page_{page_num}.png")
+        # --- Kết thúc logic tạo ảnh ---
+
+        description_list = [f"👤 **{agent['username']}** `(ID: {agent['id']})`" for agent in page_agents]
+        description_text = "\n".join(description_list)
+
+        embed = discord.Embed(
+            title=f"AGENT ROSTER ({len(self.agents)} Active)",
+            description=description_text,
+            color=discord.Color.dark_grey()
+        )
+        embed.set_image(url=f"attachment://roster_page_{page_num}.png")
+        embed.set_footer(text=f"Trang {self.current_page + 1}/{self.total_pages}")
+        
+        return embed, discord_file
+
+    async def update_buttons(self):
+        """Cập nhật trạng thái (bật/tắt) của các nút."""
+        self.children[0].disabled = self.current_page == 0
+        self.children[1].disabled = self.current_page >= self.total_pages - 1
+
+    async def send_initial_message(self):
+        """Gửi tin nhắn đầu tiên."""
+        embed, file = await self.create_page_embed(self.current_page)
+        await self.update_buttons()
+        self.message = await self.ctx.send(embed=embed, file=file, view=self)
+
+    @discord.ui.button(label="Trang Trước", style=discord.ButtonStyle.secondary, emoji="⬅️")
+    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            embed, file = await self.create_page_embed(self.current_page)
+            await self.update_buttons()
+            await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+        else:
+            await interaction.response.defer()
+
+    @discord.ui.button(label="Trang Sau", style=discord.ButtonStyle.secondary, emoji="➡️")
+    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            embed, file = await self.create_page_embed(self.current_page)
+            await self.update_buttons()
+            await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+        else:
+            await interaction.response.defer()
+            
 # --- DISCORD BOT EVENTS ---
 @bot.event
 async def on_ready():
@@ -846,11 +935,11 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
     
     await ctx.send(embed=embed)
 
-@bot.command(name='roster', help='(Owner only) Displays a visual roster of all agents.')
+@bot.command(name='roster', help='(Owner only) Displays a paginated visual roster of all agents.')
 @commands.is_owner()
 async def roster(ctx):
-    """Displays a visual roster with names for all authorized agents from JSONBin."""
-    await ctx.send("Accessing network archives and generating visual roster... This may take a moment.")
+    """Displays a paginated visual roster of all authorized agents from JSONBin."""
+    await ctx.send("Accessing network archives...")
 
     try:
         agent_data = jsonbin_storage.read_data()
@@ -866,59 +955,10 @@ async def roster(ctx):
         if not agents:
             await ctx.send("❌ **Error:** No agent data found.")
             return
-            
-        # --- Logic Tạo Ảnh Ghép (giữ nguyên) ---
-        avatar_size = 128
-        padding = 10
-        cols = 5
-        rows = (len(agents) + cols - 1) // cols
         
-        canvas_width = (avatar_size * cols) + (padding * (cols + 1))
-        canvas_height = (avatar_size * rows) + (padding * (rows + 1))
-        
-        canvas = Image.new('RGBA', (canvas_width, canvas_height), (44, 47, 51, 255))
-
-        current_x, current_y = padding, padding
-        for i, agent in enumerate(agents):
-            if agent['avatar_hash']:
-                avatar_url = f"https://cdn.discordapp.com/avatars/{agent['id']}/{agent['avatar_hash']}.png?size=128"
-                try:
-                    response = requests.get(avatar_url, stream=True)
-                    response.raise_for_status()
-                    avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
-                    canvas.paste(avatar_img, (current_x, current_y))
-                except Exception as e:
-                    print(f"Could not load avatar for {agent['id']}: {e}")
-
-            current_x += avatar_size + padding
-            if (i + 1) % cols == 0:
-                current_x = padding
-                current_y += avatar_size + padding
-
-        buffer = io.BytesIO()
-        canvas.save(buffer, 'PNG')
-        buffer.seek(0)
-        
-        discord_file = discord.File(buffer, filename="roster.png")
-        # --- Kết Thúc Logic Tạo Ảnh ---
-        
-        # --- PHẦN MỚI: Tạo danh sách tên ---
-        description_list = []
-        for agent in agents:
-            description_list.append(f"👤 **{agent['username']}** `(ID: {agent['id']})`")
-        
-        description_text = "\n".join(description_list)
-        # --- KẾT THÚC PHẦN MỚI ---
-
-        embed = discord.Embed(
-            title=f"AGENT ROSTER ({len(agents)} Active)",
-            description=description_text, # <--- SỬA Ở ĐÂY
-            color=discord.Color.dark_grey()
-        )
-        embed.set_image(url="attachment://roster.png")
-        embed.set_footer(text="Generated from secure JSONBin.io archive.")
-
-        await ctx.send(embed=embed, file=discord_file)
+        # Khởi tạo và gửi trang đầu tiên
+        pagination_view = RosterPages(agents, ctx)
+        await pagination_view.send_initial_message()
 
     except Exception as e:
         await ctx.send(f"An unexpected error occurred: {e}")
@@ -1927,6 +1967,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
