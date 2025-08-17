@@ -6,11 +6,20 @@ import threading
 import discord
 import aiohttp
 import requests
-import psycopg2
 from discord.ext import commands
 from flask import Flask, request
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+import time
+
+# Try to import psycopg2, fallback to JSON if not available
+try:
+    import psycopg2
+    HAS_PSYCOPG2 = True
+    print("✅ psycopg2 imported successfully")
+except ImportError:
+    HAS_PSYCOPG2 = False
+    print("⚠️ WARNING: psycopg2 not available, using JSON storage only")
 
 # --- LOAD ENVIRONMENT VARIABLES ---
 load_dotenv()
@@ -34,9 +43,9 @@ REDIRECT_URI = f'{RENDER_URL}/callback'
 # --- DATABASE SETUP ---
 def init_database():
     """Khởi tạo database và tạo bảng nếu chưa có"""
-    if not DATABASE_URL:
-        print("⚠️ WARNING: Không có DATABASE_URL, sử dụng file JSON backup")
-        return None
+    if not DATABASE_URL or not HAS_PSYCOPG2:
+        print("⚠️ WARNING: Không có DATABASE_URL hoặc psycopg2, sử dụng file JSON backup")
+        return False
     
     try:
         conn = psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -62,15 +71,16 @@ def init_database():
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
         print("🔄 Falling back to JSON file storage")
-        return None
+        return False
 
 # --- DATABASE FUNCTIONS ---
 def get_db_connection():
     """Tạo connection tới database"""
-    if DATABASE_URL:
+    if DATABASE_URL and HAS_PSYCOPG2:
         try:
             return psycopg2.connect(DATABASE_URL, sslmode='require')
-        except:
+        except Exception as e:
+            print(f"Database connection error: {e}")
             return None
     return None
 
@@ -87,7 +97,8 @@ def get_user_access_token_db(user_id: str):
             return result[0] if result else None
         except Exception as e:
             print(f"Database error: {e}")
-            conn.close()
+            if conn:
+                conn.close()
     return None
 
 def save_user_token_db(user_id: str, access_token: str, username: str = None):
@@ -112,7 +123,8 @@ def save_user_token_db(user_id: str, access_token: str, username: str = None):
             return True
         except Exception as e:
             print(f"Database error: {e}")
-            conn.close()
+            if conn:
+                conn.close()
     return False
 
 # --- FALLBACK JSON FUNCTIONS ---
@@ -121,7 +133,10 @@ def get_user_access_token_json(user_id: str):
     try:
         with open('tokens.json', 'r') as f:
             tokens = json.load(f)
-            return tokens.get(str(user_id))
+            data = tokens.get(str(user_id))
+            if isinstance(data, dict):
+                return data.get('access_token')
+            return data
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
@@ -137,7 +152,7 @@ def save_user_token_json(user_id: str, access_token: str, username: str = None):
         tokens[user_id] = {
             'access_token': access_token,
             'username': username,
-            'updated_at': str(asyncio.get_event_loop().time())
+            'updated_at': str(time.time())
         }
         
         with open('tokens.json', 'w') as f:
@@ -159,10 +174,7 @@ def get_user_access_token(user_id: int):
         return token
     
     # Fallback to JSON
-    data = get_user_access_token_json(user_id_str)
-    if isinstance(data, dict):
-        return data.get('access_token')
-    return data
+    return get_user_access_token_json(user_id_str)
 
 def save_user_token(user_id: str, access_token: str, username: str = None):
     """Lưu access token (database + JSON backup)"""
@@ -207,7 +219,8 @@ async def on_ready():
     print(f'✅ Bot đăng nhập thành công: {bot.user.name}')
     print(f'🔗 Web server: {RENDER_URL}')
     print(f'🔑 Redirect URI: {REDIRECT_URI}')
-    print(f'💾 Database: {"Connected" if DATABASE_URL else "JSON Fallback"}')
+    db_status = "Connected" if get_db_connection() else "JSON Fallback"
+    print(f'💾 Database: {db_status}')
     print('------')
 
 # --- DISCORD BOT COMMANDS ---
@@ -228,7 +241,7 @@ async def auth(ctx):
         color=0x00ff00
     )
     embed.add_field(name="🔗 Link ủy quyền", value=f"[Nhấp vào đây]({auth_url})", inline=False)
-    embed.add_field(name="📝 Lưu ý", value="Token sẽ được lưu vào database, không mất khi restart", inline=False)
+    embed.add_field(name="📝 Lưu ý", value="Token sẽ được lưu an toàn và không mất khi restart", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name='add_me', help='Thêm bạn vào tất cả các server của bot.')
@@ -298,7 +311,10 @@ async def check_token(ctx):
 @bot.command(name='status', help='Kiểm tra trạng thái bot và database.')
 async def status(ctx):
     # Test database connection
-    db_status = "✅ Connected" if get_db_connection() else "❌ Disconnected"
+    db_connection = get_db_connection()
+    db_status = "✅ Connected" if db_connection else "❌ JSON Fallback"
+    if db_connection:
+        db_connection.close()
     
     embed = discord.Embed(title="🤖 Trạng thái Bot", color=0x0099ff)
     embed.add_field(name="📊 Server", value=f"{len(bot.guilds)} server", inline=True)
@@ -456,11 +472,16 @@ def callback():
 @app.route('/health')
 def health():
     """Health check endpoint"""
-    db_status = get_db_connection() is not None
+    db_connection = get_db_connection()
+    db_status = db_connection is not None
+    if db_connection:
+        db_connection.close()
+    
     return {
         "status": "ok", 
         "bot_connected": bot.is_ready(),
-        "database_connected": db_status
+        "database_connected": db_status,
+        "has_psycopg2": HAS_PSYCOPG2
     }
 
 # --- THREADING FUNCTION ---
@@ -475,7 +496,7 @@ if __name__ == '__main__':
     print(f"🔧 Render URL: {RENDER_URL}")
     
     # Initialize database
-    init_database()
+    database_initialized = init_database()
     
     try:
         # Start Flask server in separate thread
@@ -484,7 +505,6 @@ if __name__ == '__main__':
         print(f"🌐 Web server started on port {PORT}")
         
         # Wait for Flask to start
-        import time
         time.sleep(2)
         
         # Start Discord bot in main thread
