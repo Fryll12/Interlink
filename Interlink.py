@@ -186,7 +186,7 @@ def save_user_token(user_id: str, access_token: str, username: str = None):
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011)
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
 
 # --- FLASK WEB SERVER SETUP ---
 app = Flask(__name__)
@@ -230,7 +230,12 @@ class ServerSelectView(discord.ui.View):
     def create_server_select(self):
         # Tạo các lựa chọn cho menu, mỗi lựa chọn là một server
         options = [
-            discord.SelectOption(label=guild.name, value=str(guild.id), emoji='🖥️')
+            discord.SelectOption(
+                label=guild.name, 
+                value=str(guild.id), 
+                emoji='🖥️', 
+                description=f"{guild.member_count} thành viên"
+            )
             for guild in self.guilds
         ]
         
@@ -520,6 +525,30 @@ async def help_slash(interaction: discord.Interaction):
     embed.set_footer(text="Bot được phát triển với sự hỗ trợ của AI.")
     
     await interaction.response.send_message(embed=embed, ephemeral=True) # ephemeral=True chỉ gửi cho người dùng lệnh
+
+@bot.command(name='help', help='Hiển thị bảng trợ giúp về các lệnh.')
+async def help(ctx):
+    embed = discord.Embed(
+        title="🤖 Bảng Lệnh Của Interlink Bot",
+        description="Dưới đây là danh sách các lệnh bạn có thể sử dụng:",
+        color=0x0099ff # Bạn có thể đổi màu ở đây
+    )
+
+    embed.add_field(name="`!auth`", value="Gửi link để bạn ủy quyền, cho phép bot thêm bạn vào server.", inline=False)
+    embed.add_field(name="`!add_me`", value="Tự thêm chính bạn vào tất cả các server sau khi đã ủy quyền.", inline=False)
+    embed.add_field(name="`!check_token`", value="Kiểm tra xem bạn đã ủy quyền cho bot hay chưa.", inline=False)
+    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và database.", inline=False)
+
+    # Chỉ hiển thị các lệnh của chủ bot cho chủ bot
+    if await bot.is_owner(ctx.author):
+        embed.add_field(name="👑 Lệnh Dành Cho Chủ Bot 👑", value="----------------------------------", inline=False)
+        embed.add_field(name="`!invite <User ID/@User>`", value="Mở giao diện để chọn và mời một người dùng vào các server.", inline=False)
+        embed.add_field(name="`!force_add <User ID/@User>`", value="Ép thêm một người dùng vào TẤT CẢ các server.", inline=False)
+
+    embed.set_footer(text="Chọn một lệnh và bắt đầu!")
+    embed.set_thumbnail(url=bot.user.display_avatar.url) # Thêm avatar của bot vào embed
+
+    await ctx.send(embed=embed)
     
 # --- FLASK WEB ROUTES ---
 @app.route('/')
@@ -715,5 +744,6 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
