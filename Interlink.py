@@ -858,7 +858,6 @@ def index():
     <html>
     <head>
         <title>Discord Detective Bureau - Authorization Portal</title>
-        <link href="https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap" rel="stylesheet">
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap');
             
@@ -1383,7 +1382,6 @@ def callback():
     <html>
     <head>
         <title>Mission Accomplished - Detective Bureau</title>
-        <link href="https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap" rel="stylesheet">
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap');
             
@@ -1405,7 +1403,7 @@ def callback():
             }}
             
             body {{
-                font-family: 'Griffy', cursive;
+                font-family: Arial, Helvetica, sans-serif;
                 background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
                 color: #e0e0e0;
                 min-height: 100vh;
@@ -1845,3 +1843,4 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
