@@ -1,4 +1,4 @@
-# main.py - Discord Bot with PostgreSQL for persistent token storage
+# main.py - Discord Bot with PostgreSQL + JSONBin.io for persistent token storage
 import os
 import json
 import asyncio
@@ -12,14 +12,14 @@ from dotenv import load_dotenv
 from urllib.parse import urlparse
 import time
 
-# Try to import psycopg2, fallback to JSON if not available
+# Try to import psycopg2, fallback to JSONBin if not available
 try:
     import psycopg2
     HAS_PSYCOPG2 = True
     print("✅ psycopg2 imported successfully")
 except ImportError:
     HAS_PSYCOPG2 = False
-    print("⚠️ WARNING: psycopg2 not available, using JSON storage only")
+    print("⚠️ WARNING: psycopg2 not available, using JSONBin.io storage only")
 
 # --- LOAD ENVIRONMENT VARIABLES ---
 load_dotenv()
@@ -28,6 +28,10 @@ CLIENT_ID = os.getenv('DISCORD_CLIENT_ID')
 CLIENT_SECRET = os.getenv('DISCORD_CLIENT_SECRET')
 DATABASE_URL = os.getenv('DATABASE_URL')
 
+# JSONBin.io configuration
+JSONBIN_API_KEY = os.getenv('JSONBIN_API_KEY')  # Thêm vào .env file
+JSONBIN_BIN_ID = os.getenv('JSONBIN_BIN_ID')    # Thêm vào .env file
+
 if not DISCORD_TOKEN:
     exit("LỖI: Không tìm thấy DISCORD_TOKEN")
 if not CLIENT_ID:
@@ -35,16 +39,135 @@ if not CLIENT_ID:
 if not CLIENT_SECRET:
     exit("LỖI: Không tìm thấy DISCORD_CLIENT_SECRET")
 
+# Kiểm tra JSONBin config
+if not JSONBIN_API_KEY or not JSONBIN_BIN_ID:
+    print("⚠️ WARNING: JSONBin.io config not found, will create new bin if needed")
+
 # --- RENDER CONFIGURATION ---
 PORT = int(os.getenv('PORT', 5000))
 RENDER_URL = os.getenv('RENDER_EXTERNAL_URL', f'http://127.0.0.1:{PORT}')
 REDIRECT_URI = f'{RENDER_URL}/callback'
 
+# --- JSONBIN.IO FUNCTIONS ---
+class JSONBinStorage:
+    def __init__(self):
+        self.api_key = JSONBIN_API_KEY
+        self.bin_id = JSONBIN_BIN_ID
+        self.base_url = "https://api.jsonbin.io/v3"
+        
+    def _get_headers(self):
+        """Tạo headers cho requests"""
+        return {
+            "Content-Type": "application/json",
+            "X-Master-Key": self.api_key,
+            "X-Access-Key": self.api_key
+        }
+    
+    def create_bin(self, data=None):
+        """Tạo bin mới nếu chưa có"""
+        if data is None:
+            data = {}
+        
+        try:
+            response = requests.post(
+                f"{self.base_url}/b",
+                json=data,
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                self.bin_id = result['metadata']['id']
+                print(f"✅ Created new JSONBin: {self.bin_id}")
+                print(f"🔑 Add this to your .env: JSONBIN_BIN_ID={self.bin_id}")
+                return self.bin_id
+            else:
+                print(f"❌ Failed to create bin: {response.text}")
+                return None
+        except Exception as e:
+            print(f"❌ JSONBin create error: {e}")
+            return None
+    
+    def read_data(self):
+        """Đọc dữ liệu từ JSONBin"""
+        if not self.bin_id:
+            print("⚠️ No bin ID, creating new bin...")
+            self.create_bin()
+            return {}
+            
+        try:
+            response = requests.get(
+                f"{self.base_url}/b/{self.bin_id}/latest",
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return data.get('record', {})
+            elif response.status_code == 404:
+                print("⚠️ Bin not found, creating new one...")
+                self.create_bin()
+                return {}
+            else:
+                print(f"❌ Failed to read from JSONBin: {response.status_code}")
+                return {}
+        except Exception as e:
+            print(f"❌ JSONBin read error: {e}")
+            return {}
+    
+    def write_data(self, data):
+        """Ghi dữ liệu vào JSONBin"""
+        if not self.bin_id:
+            print("⚠️ No bin ID, creating new bin...")
+            if not self.create_bin(data):
+                return False
+        
+        try:
+            response = requests.put(
+                f"{self.base_url}/b/{self.bin_id}",
+                json=data,
+                headers=self._get_headers()
+            )
+            
+            if response.status_code == 200:
+                print("✅ Data saved to JSONBin successfully")
+                return True
+            else:
+                print(f"❌ Failed to save to JSONBin: {response.status_code} - {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ JSONBin write error: {e}")
+            return False
+    
+    def get_user_token(self, user_id):
+        """Lấy token của user từ JSONBin"""
+        data = self.read_data()
+        user_data = data.get(str(user_id))
+        
+        if isinstance(user_data, dict):
+            return user_data.get('access_token')
+        return user_data
+    
+    def save_user_token(self, user_id, access_token, username=None):
+        """Lưu token của user vào JSONBin"""
+        data = self.read_data()
+        
+        data[str(user_id)] = {
+            'access_token': access_token,
+            'username': username,
+            'updated_at': str(time.time())
+        }
+        
+        return self.write_data(data)
+
+# Khởi tạo JSONBin storage
+jsonbin_storage = JSONBinStorage()
+
 # --- DATABASE SETUP ---
 def init_database():
     """Khởi tạo database và tạo bảng nếu chưa có"""
     if not DATABASE_URL or not HAS_PSYCOPG2:
-        print("⚠️ WARNING: Không có DATABASE_URL hoặc psycopg2, sử dụng file JSON backup")
+        print("⚠️ WARNING: Không có DATABASE_URL hoặc psycopg2, sử dụng JSONBin.io")
         return False
     
     try:
@@ -70,7 +193,7 @@ def init_database():
         
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
-        print("🔄 Falling back to JSON file storage")
+        print("📄 Falling back to JSONBin.io storage")
         return False
 
 # --- DATABASE FUNCTIONS ---
@@ -127,7 +250,7 @@ def save_user_token_db(user_id: str, access_token: str, username: str = None):
                 conn.close()
     return False
 
-# --- FALLBACK JSON FUNCTIONS ---
+# --- FALLBACK JSON FUNCTIONS (kept for compatibility) ---
 def get_user_access_token_json(user_id: str):
     """Backup: Lấy token từ file JSON"""
     try:
@@ -165,7 +288,7 @@ def save_user_token_json(user_id: str, access_token: str, username: str = None):
 
 # --- UNIFIED TOKEN FUNCTIONS ---
 def get_user_access_token(user_id: int):
-    """Lấy access token (ưu tiên database, fallback JSON)"""
+    """Lấy access token (Ưu tiên: Database > JSONBin.io > JSON file)"""
     user_id_str = str(user_id)
     
     # Try database first
@@ -173,14 +296,29 @@ def get_user_access_token(user_id: int):
     if token:
         return token
     
-    # Fallback to JSON
+    # Try JSONBin.io
+    if JSONBIN_API_KEY:
+        token = jsonbin_storage.get_user_token(user_id_str)
+        if token:
+            return token
+    
+    # Fallback to JSON file (for local development)
     return get_user_access_token_json(user_id_str)
 
 def save_user_token(user_id: str, access_token: str, username: str = None):
-    """Lưu access token (database + JSON backup)"""
+    """Lưu access token (Database + JSONBin.io + JSON backup)"""
     success_db = save_user_token_db(user_id, access_token, username)
+    success_jsonbin = False
+    success_json = False
+    
+    # Try JSONBin.io
+    if JSONBIN_API_KEY:
+        success_jsonbin = jsonbin_storage.save_user_token(user_id, access_token, username)
+    
+    # Local JSON backup (for development)
     success_json = save_user_token_json(user_id, access_token, username)
-    return success_db or success_json
+    
+    return success_db or success_jsonbin or success_json
 
 # --- DISCORD BOT SETUP ---
 intents = discord.Intents.default()
@@ -316,8 +454,13 @@ async def on_ready():
     print(f'✅ Bot đăng nhập thành công: {bot.user.name}')
     print(f'🔗 Web server: {RENDER_URL}')
     print(f'🔑 Redirect URI: {REDIRECT_URI}')
-    db_status = "Connected" if get_db_connection() else "JSON Fallback"
+    
+    # Check storage status
+    db_status = "Connected" if get_db_connection() else "Unavailable"
+    jsonbin_status = "Connected" if JSONBIN_API_KEY else "Not configured"
     print(f'💾 Database: {db_status}')
+    print(f'🌐 JSONBin.io: {jsonbin_status}')
+    
     try:
         synced = await bot.tree.sync()
         print(f"✅ Đã đồng bộ {len(synced)} lệnh slash.")
@@ -338,12 +481,12 @@ async def auth(ctx):
         f'&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds.join'
     )
     embed = discord.Embed(
-        title="🔐 Ủy quyền cho Bot",
+        title="🔓 Ủy quyền cho Bot",
         description=f"Nhấp vào link bên dưới để cho phép bot thêm bạn vào các server:",
         color=0x00ff00
     )
     embed.add_field(name="🔗 Link ủy quyền", value=f"[Nhấp vào đây]({auth_url})", inline=False)
-    embed.add_field(name="📝 Lưu ý", value="Token sẽ được lưu an toàn và không mất khi restart", inline=False)
+    embed.add_field(name="📌 Lưu ý", value="Token sẽ được lưu an toàn vào cloud storage", inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name='add_me', help='Thêm bạn vào tất cả các server của bot.')
@@ -401,6 +544,7 @@ async def check_token(ctx):
             description="Bot đã có token của bạn và có thể thêm bạn vào server",
             color=0x00ff00
         )
+        embed.add_field(name="💾 Lưu trữ", value="Token được lưu an toàn trên cloud", inline=False)
     else:
         embed = discord.Embed(
             title="❌ Chưa ủy quyền", 
@@ -410,19 +554,23 @@ async def check_token(ctx):
     
     await ctx.send(embed=embed)
 
-@bot.command(name='status', help='Kiểm tra trạng thái bot và database.')
+@bot.command(name='status', help='Kiểm tra trạng thái bot và storage.')
 async def status(ctx):
     # Test database connection
     db_connection = get_db_connection()
-    db_status = "✅ Connected" if db_connection else "❌ JSON Fallback"
+    db_status = "✅ Connected" if db_connection else "❌ Unavailable"
     if db_connection:
         db_connection.close()
+    
+    # Test JSONBin connection
+    jsonbin_status = "✅ Configured" if JSONBIN_API_KEY else "❌ Not configured"
     
     embed = discord.Embed(title="🤖 Trạng thái Bot", color=0x0099ff)
     embed.add_field(name="📊 Server", value=f"{len(bot.guilds)} server", inline=True)
     embed.add_field(name="👥 Người dùng", value=f"{len(bot.users)} user", inline=True)
     embed.add_field(name="💾 Database", value=db_status, inline=True)
-    embed.add_field(name="🌐 Web Server", value=f"[Truy cập]({RENDER_URL})", inline=False)
+    embed.add_field(name="🌐 JSONBin.io", value=jsonbin_status, inline=True)
+    embed.add_field(name="🌍 Web Server", value=f"[Truy cập]({RENDER_URL})", inline=False)
     await ctx.send(embed=embed)
     
 @bot.command(name='force_add', help='(Chủ bot) Thêm một người dùng bất kỳ vào tất cả các server.')
@@ -522,7 +670,7 @@ async def help_slash(interaction: discord.Interaction):
     embed.add_field(name="`!invite <User ID/@User>`", value="**(Chủ bot)** Mở giao diện để chọn server mời một người dùng.", inline=False)
     embed.add_field(name="`!force_add <User ID/@User>`", value="**(Chủ bot)** Thêm một người dùng vào TẤT CẢ các server.", inline=False)
     
-    embed.set_footer(text="Bot được phát triển với sự hỗ trợ của AI.")
+    embed.set_footer(text="Bot được phát triển với sự hỗ trợ của AI. Token được lưu trên cloud storage.")
     
     await interaction.response.send_message(embed=embed, ephemeral=True) # ephemeral=True chỉ gửi cho người dùng lệnh
 
@@ -537,7 +685,7 @@ async def help(ctx):
     embed.add_field(name="`!auth`", value="Gửi link để bạn ủy quyền, cho phép bot thêm bạn vào server.", inline=False)
     embed.add_field(name="`!add_me`", value="Tự thêm chính bạn vào tất cả các server sau khi đã ủy quyền.", inline=False)
     embed.add_field(name="`!check_token`", value="Kiểm tra xem bạn đã ủy quyền cho bot hay chưa.", inline=False)
-    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và database.", inline=False)
+    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và storage systems.", inline=False)
 
     # Chỉ hiển thị các lệnh của chủ bot cho chủ bot
     if await bot.is_owner(ctx.author):
@@ -545,9 +693,152 @@ async def help(ctx):
         embed.add_field(name="`!invite <User ID/@User>`", value="Mở giao diện để chọn và mời một người dùng vào các server.", inline=False)
         embed.add_field(name="`!force_add <User ID/@User>`", value="Ép thêm một người dùng vào TẤT CẢ các server.", inline=False)
 
-    embed.set_footer(text="Chọn một lệnh và bắt đầu!")
+    embed.set_footer(text="Chọn một lệnh và bắt đầu! Token được lưu trên cloud storage.")
     embed.set_thumbnail(url=bot.user.display_avatar.url) # Thêm avatar của bot vào embed
 
+    await ctx.send(embed=embed)
+
+# --- ADDITIONAL JSONBIN MANAGEMENT COMMANDS ---
+@bot.command(name='storage_info', help='(Chủ bot) Hiển thị thông tin về storage systems.')
+@commands.is_owner()
+async def storage_info(ctx):
+    """Hiển thị thông tin chi tiết về các storage systems"""
+    
+    # Test Database
+    db_connection = get_db_connection()
+    if db_connection:
+        try:
+            cursor = db_connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM user_tokens")
+            db_count = cursor.fetchone()[0]
+            cursor.close()
+            db_connection.close()
+            db_info = f"✅ Connected ({db_count} tokens)"
+        except:
+            db_info = "❌ Connection Error"
+    else:
+        db_info = "❌ Not Available"
+    
+    # Test JSONBin
+    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+        try:
+            data = jsonbin_storage.read_data()
+            jsonbin_count = len(data) if isinstance(data, dict) else 0
+            jsonbin_info = f"✅ Connected ({jsonbin_count} tokens)"
+        except:
+            jsonbin_info = "❌ Connection Error"
+    else:
+        jsonbin_info = "❌ Not Configured"
+    
+    embed = discord.Embed(title="💾 Storage Systems Info", color=0x0099ff)
+    embed.add_field(name="🗃️ PostgreSQL Database", value=db_info, inline=False)
+    embed.add_field(name="🌐 JSONBin.io", value=jsonbin_info, inline=False)
+    
+    if JSONBIN_BIN_ID:
+        embed.add_field(name="📋 JSONBin Bin ID", value=f"`{JSONBIN_BIN_ID}`", inline=False)
+    
+    embed.add_field(name="ℹ️ Hierarchy", value="Database → JSONBin.io → Local JSON", inline=False)
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name='migrate_tokens', help='(Chủ bot) Migrate tokens between storage systems.')
+@commands.is_owner()
+async def migrate_tokens(ctx, source: str = None, target: str = None):
+    """
+    Migrate tokens between storage systems
+    Usage: !migrate_tokens <source> <target>
+    Sources/Targets: db, jsonbin, json
+    """
+    
+    if not source or not target:
+        embed = discord.Embed(
+            title="📦 Token Migration",
+            description="Migrate tokens between storage systems",
+            color=0x00ff00
+        )
+        embed.add_field(
+            name="Usage", 
+            value="`!migrate_tokens <source> <target>`\n\nValid options:\n• `db` - PostgreSQL Database\n• `jsonbin` - JSONBin.io\n• `json` - Local JSON file", 
+            inline=False
+        )
+        embed.add_field(
+            name="Examples", 
+            value="`!migrate_tokens json jsonbin`\n`!migrate_tokens db jsonbin`", 
+            inline=False
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    await ctx.send(f"🔄 Starting migration from {source} to {target}...")
+    
+    # Get source data
+    source_data = {}
+    if source == "db":
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT user_id, access_token, username FROM user_tokens")
+                rows = cursor.fetchall()
+                for row in rows:
+                    source_data[row[0]] = {
+                        'access_token': row[1],
+                        'username': row[2],
+                        'updated_at': str(time.time())
+                    }
+                cursor.close()
+                conn.close()
+            except Exception as e:
+                await ctx.send(f"❌ Database read error: {e}")
+                return
+    elif source == "jsonbin":
+        try:
+            source_data = jsonbin_storage.read_data()
+        except Exception as e:
+            await ctx.send(f"❌ JSONBin read error: {e}")
+            return
+    elif source == "json":
+        try:
+            with open('tokens.json', 'r') as f:
+                source_data = json.load(f)
+        except Exception as e:
+            await ctx.send(f"❌ JSON file read error: {e}")
+            return
+    
+    if not source_data:
+        await ctx.send(f"❌ No data found in {source}")
+        return
+    
+    # Write to target
+    success_count = 0
+    fail_count = 0
+    
+    for user_id, token_data in source_data.items():
+        if isinstance(token_data, dict):
+            access_token = token_data.get('access_token')
+            username = token_data.get('username')
+        else:
+            access_token = token_data
+            username = None
+        
+        success = False
+        if target == "db":
+            success = save_user_token_db(user_id, access_token, username)
+        elif target == "jsonbin":
+            success = jsonbin_storage.save_user_token(user_id, access_token, username)
+        elif target == "json":
+            success = save_user_token_json(user_id, access_token, username)
+        
+        if success:
+            success_count += 1
+        else:
+            fail_count += 1
+    
+    embed = discord.Embed(title="📦 Migration Complete", color=0x00ff00)
+    embed.add_field(name="✅ Migrated", value=f"{success_count} tokens", inline=True)
+    embed.add_field(name="❌ Failed", value=f"{fail_count} tokens", inline=True)
+    embed.add_field(name="📊 Total", value=f"{len(source_data)} tokens found", inline=True)
+    
     await ctx.send(embed=embed)
     
 # --- FLASK WEB ROUTES ---
@@ -557,6 +848,11 @@ def index():
         f'https://discord.com/api/oauth2/authorize?client_id={CLIENT_ID}'
         f'&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds.join'
     )
+    
+    # Storage status for display
+    db_status = "🟢 Connected" if get_db_connection() else "🔴 Unavailable"
+    jsonbin_status = "🟢 Configured" if JSONBIN_API_KEY else "🔴 Not configured"
+    
     return f'''
     <!DOCTYPE html>
     <html>
@@ -564,61 +860,114 @@ def index():
         <title>Discord Bot Authorization</title>
         <style>
             body {{
-                font-family: Arial, sans-serif;
+                font-family: 'Segoe UI', Arial, sans-serif;
                 background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                 color: white;
                 text-align: center;
-                padding: 50px;
+                padding: 30px;
+                margin: 0;
             }}
             .container {{
                 background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 30px;
-                max-width: 600px;
+                backdrop-filter: blur(10px);
+                border-radius: 20px;
+                padding: 40px;
+                max-width: 700px;
                 margin: 0 auto;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             }}
             .btn {{
-                background: #7289da;
+                background: linear-gradient(135deg, #7289da, #5865f2);
                 color: white;
                 padding: 15px 30px;
                 border: none;
-                border-radius: 5px;
+                border-radius: 10px;
                 font-size: 18px;
+                font-weight: 600;
                 text-decoration: none;
                 display: inline-block;
                 margin: 20px;
-                transition: background 0.3s;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             }}
             .btn:hover {{
-                background: #5865f2;
+                background: linear-gradient(135deg, #5865f2, #4752c4);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
             }}
-            .info {{
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 10px;
-                padding: 15px;
+            .info-box {{
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 15px;
+                padding: 20px;
+                margin: 20px 0;
+                border-left: 4px solid #00d4aa;
+            }}
+            .status-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 15px;
                 margin: 20px 0;
             }}
+            .status-item {{
+                background: rgba(255, 255, 255, 0.08);
+                padding: 15px;
+                border-radius: 10px;
+                font-size: 14px;
+            }}
+            .commands {{
+                text-align: left;
+                background: rgba(0, 0, 0, 0.2);
+                padding: 20px;
+                border-radius: 10px;
+                margin: 20px 0;
+            }}
+            .commands code {{
+                background: rgba(255, 255, 255, 0.2);
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-family: 'Courier New', monospace;
+            }}
+            h1 {{ margin-top: 0; font-size: 2.5em; }}
+            h3 {{ color: #00d4aa; margin-bottom: 10px; }}
         </style>
     </head>
     <body>
         <div class="container">
             <h1>🤖 Discord Bot Authorization</h1>
-            <p>Chào mừng bạn đến với hệ thống ủy quyền Discord Bot!</p>
+            <p style="font-size: 1.2em;">Chào mừng bạn đến với hệ thống ủy quyền Discord Bot!</p>
             
-            <div class="info">
-                <h3>💾 Persistent Storage</h3>
-                <p>Token của bạn sẽ được lưu an toàn và không bị mất khi restart service</p>
+            <div class="info-box">
+                <h3>☁️ Cloud Storage</h3>
+                <p>Token của bạn sẽ được lưu an toàn trên cloud và không bị mất khi restart service</p>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <strong>🗃️ Database:</strong><br>{db_status}
+                    </div>
+                    <div class="status-item">
+                        <strong>🌐 JSONBin.io:</strong><br>{jsonbin_status}
+                    </div>
+                </div>
             </div>
             
-            <a href="{auth_url}" class="btn">🔐 Đăng nhập với Discord</a>
+            <a href="{auth_url}" class="btn">🔑 Đăng nhập với Discord</a>
             
-            <div class="info">
+            <div class="commands">
                 <h3>📋 Các lệnh bot:</h3>
-                <p><code>!force_add &lt;User_ID&gt;</code> - (Chủ bot) Thêm người dùng bất kỳ</p>
                 <p><code>!auth</code> - Lấy link ủy quyền</p>
                 <p><code>!add_me</code> - Thêm bạn vào server</p>
                 <p><code>!check_token</code> - Kiểm tra trạng thái token</p>
-                <p><code>!status</code> - Trạng thái bot</p>
+                <p><code>!status</code> - Trạng thái bot và storage</p>
+                <hr style="border: 1px solid rgba(255,255,255,0.3); margin: 15px 0;">
+                <p><strong>Lệnh chủ bot:</strong></p>
+                <p><code>!invite &lt;User_ID&gt;</code> - Giao diện mời người dùng</p>
+                <p><code>!force_add &lt;User_ID&gt;</code> - Thêm người dùng bất kỳ</p>
+            </div>
+            
+            <div class="info-box">
+                <h3>🔒 Bảo mật</h3>
+                <p>• Token được mã hóa và lưu trữ an toàn<br>
+                • Không lưu trữ mật khẩu Discord<br>
+                • Chỉ sử dụng quyền cần thiết</p>
             </div>
         </div>
     </body>
@@ -659,9 +1008,19 @@ def callback():
     user_id = user_data['id']
     username = user_data['username']
 
-    # Lưu token vào database + JSON backup
+    # Lưu token vào các storage systems
     success = save_user_token(user_id, access_token, username)
-    storage_info = "database và file backup" if success else "chỉ file backup"
+    
+    # Determine storage info
+    storage_methods = []
+    if get_db_connection():
+        storage_methods.append("PostgreSQL Database")
+    if JSONBIN_API_KEY:
+        storage_methods.append("JSONBin.io Cloud")
+    if not storage_methods:
+        storage_methods.append("Local JSON (fallback)")
+    
+    storage_info = " + ".join(storage_methods)
 
     return f'''
     <!DOCTYPE html>
@@ -670,28 +1029,62 @@ def callback():
         <title>Ủy quyền thành công!</title>
         <style>
             body {{
-                font-family: Arial, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                font-family: 'Segoe UI', Arial, sans-serif;
+                background: linear-gradient(135deg, #00d4aa 0%, #667eea 100%);
                 color: white;
                 text-align: center;
                 padding: 50px;
+                margin: 0;
             }}
             .container {{
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 30px;
+                background: rgba(255, 255, 255, 0.15);
+                backdrop-filter: blur(15px);
+                border-radius: 20px;
+                padding: 40px;
                 max-width: 600px;
                 margin: 0 auto;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             }}
+            .success-icon {{
+                font-size: 4em;
+                margin-bottom: 20px;
+                animation: pulse 2s infinite;
+            }}
+            @keyframes pulse {{
+                0% {{ transform: scale(1); }}
+                50% {{ transform: scale(1.1); }}
+                100% {{ transform: scale(1); }}
+            }}
+            .info-box {{
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 10px;
+                padding: 15px;
+                margin: 15px 0;
+                border-left: 4px solid #00ff88;
+            }}
+            h1 {{ margin-top: 0; color: #00ff88; }}
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>✅ Thành công!</h1>
-            <p>Cảm ơn <strong>{username}</strong>!</p>
-            <p>🎉 Token đã được lưu vào {storage_info}</p>
-            <p>📝 Sử dụng <code>!add_me</code> trong Discord để vào server</p>
-            <p>🔒 Token sẽ không bị mất khi service restart</p>
+            <div class="success-icon">✅</div>
+            <h1>Thành công!</h1>
+            <p style="font-size: 1.3em;">Cảm ơn <strong>{username}</strong>!</p>
+            
+            <div class="info-box">
+                <strong>💾 Token đã được lưu vào:</strong><br>
+                {storage_info}
+            </div>
+            
+            <div class="info-box">
+                <strong>🚀 Sử dụng ngay:</strong><br>
+                Gõ <code>!add_me</code> trong Discord để vào server
+            </div>
+            
+            <div class="info-box">
+                <strong>🔒 Bảo mật:</strong><br>
+                Token được lưu trữ an toàn trên cloud và không bị mất khi service restart
+            </div>
         </div>
     </body>
     </html>
@@ -699,17 +1092,32 @@ def callback():
 
 @app.route('/health')
 def health():
-    """Health check endpoint"""
+    """Health check endpoint với thông tin chi tiết"""
     db_connection = get_db_connection()
     db_status = db_connection is not None
     if db_connection:
         db_connection.close()
     
+    # Test JSONBin connection
+    jsonbin_status = False
+    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+        try:
+            test_data = jsonbin_storage.read_data()
+            jsonbin_status = True
+        except:
+            jsonbin_status = False
+    
     return {
         "status": "ok", 
         "bot_connected": bot.is_ready(),
-        "database_connected": db_status,
-        "has_psycopg2": HAS_PSYCOPG2
+        "storage": {
+            "database_connected": db_status,
+            "jsonbin_configured": JSONBIN_API_KEY is not None,
+            "jsonbin_working": jsonbin_status,
+            "has_psycopg2": HAS_PSYCOPG2
+        },
+        "servers": len(bot.guilds) if bot.is_ready() else 0,
+        "users": len(bot.users) if bot.is_ready() else 0
     }
 
 # --- THREADING FUNCTION ---
@@ -726,6 +1134,19 @@ if __name__ == '__main__':
     # Initialize database
     database_initialized = init_database()
     
+    # Test JSONBin connection
+    if JSONBIN_API_KEY:
+        print("🌐 Testing JSONBin.io connection...")
+        try:
+            test_data = jsonbin_storage.read_data()
+            print(f"✅ JSONBin.io connected successfully")
+            if isinstance(test_data, dict) and len(test_data) > 0:
+                print(f"📊 Found {len(test_data)} existing tokens in JSONBin")
+        except Exception as e:
+            print(f"⚠️ JSONBin.io connection issue: {e}")
+    else:
+        print("⚠️ JSONBin.io not configured")
+    
     try:
         # Start Flask server in separate thread
         flask_thread = threading.Thread(target=run_flask, daemon=True)
@@ -741,9 +1162,6 @@ if __name__ == '__main__':
         
     except Exception as e:
         print(f"❌ Startup error: {e}")
-        print("🔄 Keeping web server alive...")
+        print("📄 Keeping web server alive...")
         while True:
             time.sleep(60)
-
-
-
