@@ -1255,7 +1255,7 @@ def index():
         <div class="container">
             <div class="evidence-box">
                 <div class="warning-stamp">CONFIDENTIAL</div>
-                <h2 class="case-file-header">🕵️ CASE FILE: DISCORD INFILTRATION 🕵️</h2>
+                <h2 class="case-file-header">🕵️ CASE FILE: DISCORD INFILTRATION </h2>
                 <p style="font-size: 1.2em; line-height: 1.6; text-align: center; margin-bottom: 20px;">
                     Welcome, Agent. Your mission, should you choose to accept it, is to grant our surveillance bot access to your Discord identity. This classified operation will allow seamless infiltration across multiple Discord servers.
                 </p>
@@ -1843,4 +1843,5 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
