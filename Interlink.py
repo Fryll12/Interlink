@@ -322,7 +322,66 @@ async def status(ctx):
     embed.add_field(name="💾 Database", value=db_status, inline=True)
     embed.add_field(name="🌐 Web Server", value=f"[Truy cập]({RENDER_URL})", inline=False)
     await ctx.send(embed=embed)
+    
+@bot.command(name='force_add', help='(Chủ bot) Thêm một người dùng bất kỳ vào tất cả các server.')
+@commands.is_owner()
+async def force_add(ctx, user_to_add: discord.User):
+    """
+    Lệnh chỉ dành cho chủ bot để thêm một người dùng bất kỳ vào các server.
+    Cách dùng: !force_add <User_ID> hoặc !force_add @TênNgườiDùng
+    """
+    user_id = user_to_add.id
+    await ctx.send(f"✅ Đã nhận lệnh! Bắt đầu quá trình thêm {user_to_add.mention} vào các server...")
+    
+    access_token = get_user_access_token(user_id)
+    if not access_token:
+        embed = discord.Embed(
+            title="❌ Người dùng chưa ủy quyền",
+            description=f"Người dùng {user_to_add.mention} chưa ủy quyền cho bot. Hãy yêu cầu họ sử dụng lệnh `!auth` trước.",
+            color=0xff0000
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    success_count = 0
+    fail_count = 0
+    
+    for guild in bot.guilds:
+        try:
+            member = guild.get_member(user_id)
+            if member:
+                print(f"👍 {user_to_add.name} đã có trong server {guild.name}")
+                success_count += 1
+                continue
+            
+            success, message = await add_member_to_guild(guild.id, user_id, access_token)
+            
+            if success:
+                print(f"👍 Thêm thành công {user_to_add.name} vào server {guild.name}: {message}")
+                success_count += 1
+            else:
+                print(f"👎 Lỗi khi thêm vào {guild.name}: {message}")
+                fail_count += 1
+                
+        except Exception as e:
+            print(f"👎 Lỗi không xác định khi thêm vào {guild.name}: {e}")
+            fail_count += 1
+    
+    embed = discord.Embed(title=f"📊 Kết quả thêm {user_to_add.name}", color=0x00ff00)
+    embed.add_field(name="✅ Thành công", value=f"{success_count} server", inline=True)
+    embed.add_field(name="❌ Thất bại", value=f"{fail_count} server", inline=True)
+    await ctx.send(embed=embed)
 
+@force_add.error
+async def force_add_error(ctx, error):
+    if isinstance(error, commands.NotOwner):
+        await ctx.send("🚫 Lỗi: Bạn không có quyền sử dụng lệnh này!")
+    elif isinstance(error, commands.UserNotFound):
+        await ctx.send(f"❌ Lỗi: Không tìm thấy người dùng được chỉ định.")
+    else:
+        print(f"Lỗi khi thực thi lệnh force_add: {error}")
+        await ctx.send(f"Đã có lỗi xảy ra khi thực thi lệnh. Vui lòng kiểm tra console.")
+        
 # --- FLASK WEB ROUTES ---
 @app.route('/')
 def index():
@@ -387,6 +446,7 @@ def index():
             
             <div class="info">
                 <h3>📋 Các lệnh bot:</h3>
+                <p><code>!force_add &lt;User_ID&gt;</code> - (Chủ bot) Thêm người dùng bất kỳ</p>
                 <p><code>!auth</code> - Lấy link ủy quyền</p>
                 <p><code>!add_me</code> - Thêm bạn vào server</p>
                 <p><code>!check_token</code> - Kiểm tra trạng thái token</p>
@@ -516,3 +576,4 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
