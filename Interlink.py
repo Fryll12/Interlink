@@ -227,21 +227,22 @@ def get_user_access_token_db(user_id: str):
                 conn.close()
     return None
 
-def save_user_token_db(user_id: str, access_token: str, username: str = None):
+def save_user_token_db(user_id: str, access_token: str, username: str = None, avatar_hash: str = None):
     """Lưu access token vào database"""
     conn = get_db_connection()
     if conn:
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO user_tokens (user_id, access_token, username) 
-                VALUES (%s, %s, %s)
+                INSERT INTO user_tokens (user_id, access_token, username, avatar_hash) 
+                VALUES (%s, %s, %s, %s)
                 ON CONFLICT (user_id) 
                 DO UPDATE SET 
                     access_token = EXCLUDED.access_token,
                     username = EXCLUDED.username,
+                    avatar_hash = EXCLUDED.avatar_hash,
                     updated_at = CURRENT_TIMESTAMP
-            ''', (user_id, access_token, username))
+            ''', (user_id, access_token, username, avatar_hash))
             conn.commit()
             cursor.close()
             conn.close()
@@ -266,7 +267,7 @@ def get_user_access_token_json(user_id: str):
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
-def save_user_token_json(user_id: str, access_token: str, username: str = None):
+def save_user_token_json(user_id: str, access_token: str, username: str = None, avatar_hash: str = None):
     """Backup: Lưu token vào file JSON"""
     try:
         try:
@@ -278,6 +279,7 @@ def save_user_token_json(user_id: str, access_token: str, username: str = None):
         tokens[user_id] = {
             'access_token': access_token,
             'username': username,
+            'avatar_hash': avatar_hash,
             'updated_at': str(time.time())
         }
         
@@ -308,18 +310,18 @@ def get_user_access_token(user_id: int):
     # Fallback to JSON file (for local development)
     return get_user_access_token_json(user_id_str)
 
-def save_user_token(user_id: str, access_token: str, username: str = None):
+def save_user_token(user_id: str, access_token: str, username: str = None, avatar_hash: str = None):
     """Lưu access token (Database + JSONBin.io + JSON backup)"""
-    success_db = save_user_token_db(user_id, access_token, username)
+    success_db = save_user_token_db(user_id, access_token, username, avatar_hash)
     success_jsonbin = False
     success_json = False
     
     # Try JSONBin.io
     if JSONBIN_API_KEY:
-        success_jsonbin = jsonbin_storage.save_user_token(user_id, access_token, username)
+        success_jsonbin = jsonbin_storage.save_user_token(user_id, access_token, username, avatar_hash)
     
     # Local JSON backup (for development)
-    success_json = save_user_token_json(user_id, access_token, username)
+    success_json = save_user_token_json(user_id, access_token, username, avatar_hash)
     
     return success_db or success_jsonbin or success_json
 
@@ -1917,6 +1919,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
