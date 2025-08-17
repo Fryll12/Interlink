@@ -11,6 +11,8 @@ from flask import Flask, request
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 import time
+from PIL import Image, ImageDraw
+import io
 
 # Try to import psycopg2, fallback to JSONBin if not available
 try:
@@ -148,13 +150,14 @@ class JSONBinStorage:
             return user_data.get('access_token')
         return user_data
     
-    def save_user_token(self, user_id, access_token, username=None):
+    def save_user_token(self, user_id, access_token, username=None, avatar_hash=None):
         """Lưu token của user vào JSONBin"""
         data = self.read_data()
         
         data[str(user_id)] = {
             'access_token': access_token,
             'username': username,
+            'avatar_hash': avatar_hash,
             'updated_at': str(time.time())
         }
         
@@ -840,7 +843,77 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
     embed.add_field(name="📊 Total", value=f"{len(source_data)} tokens found", inline=True)
     
     await ctx.send(embed=embed)
-    
+
+@bot.command(name='roster', help='(Owner only) Displays a visual roster of all agents from JSONBin.')
+@commands.is_owner()
+async def roster(ctx):
+    """Displays a visual roster of all authorized agents from JSONBin."""
+    await ctx.send("Accessing network archives and generating visual roster... This may take a moment.")
+
+    try:
+        agent_data = jsonbin_storage.read_data()
+        if not agent_data:
+            await ctx.send("❌ **Error:** No agent dossiers found in the network.")
+            return
+
+        agents = [
+            {'id': uid, 'avatar_hash': data.get('avatar_hash')}
+            for uid, data in agent_data.items() if isinstance(data, dict) and data.get('avatar_hash')
+        ]
+
+        if not agents:
+            await ctx.send("❌ **Error:** No agents with avatar data found.")
+            return
+
+        # --- Logic Tạo Ảnh Ghép ---
+        avatar_size = 128
+        padding = 10
+        cols = 5
+        rows = (len(agents) + cols - 1) // cols
+
+        canvas_width = (avatar_size * cols) + (padding * (cols + 1))
+        canvas_height = (avatar_size * rows) + (padding * (rows + 1))
+
+        canvas = Image.new('RGBA', (canvas_width, canvas_height), (44, 47, 51, 255))
+
+        current_x, current_y = padding, padding
+        for i, agent in enumerate(agents):
+            avatar_url = f"https://cdn.discordapp.com/avatars/{agent['id']}/{agent['avatar_hash']}.png?size=128"
+            try:
+                response = requests.get(avatar_url, stream=True)
+                response.raise_for_status()
+                avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
+
+                canvas.paste(avatar_img, (current_x, current_y))
+            except Exception as e:
+                print(f"Could not load avatar for {agent['id']}: {e}")
+
+            current_x += avatar_size + padding
+            if (i + 1) % cols == 0:
+                current_x = padding
+                current_y += avatar_size + padding
+
+        buffer = io.BytesIO()
+        canvas.save(buffer, 'PNG')
+        buffer.seek(0)
+
+        discord_file = discord.File(buffer, filename="roster.png")
+        # --- Kết Thúc Logic Tạo Ảnh ---
+
+        embed = discord.Embed(
+            title=f"AGENT ROSTER ({len(agents)} Active)",
+            description="Visual confirmation of all operatives in the network.",
+            color=discord.Color.dark_grey()
+        )
+        embed.set_image(url="attachment://roster.png")
+        embed.set_footer(text="Generated from secure JSONBin.io archive.")
+
+        await ctx.send(embed=embed, file=discord_file)
+
+    except Exception as e:
+        await ctx.send(f"An unexpected error occurred: {e}")
+        print(f"Roster command error: {e}")
+        
 # --- FLASK WEB ROUTES ---
 @app.route('/')
 def index():
@@ -1362,9 +1435,10 @@ def callback():
     user_data = user_response.json()
     user_id = user_data['id']
     username = user_data['username']
-
+    avatar_hash = user_data.get('avatar')
+    
     # Lưu token vào các storage systems
-    success = save_user_token(user_id, access_token, username)
+    success = save_user_token(user_id, access_token, username, avatar_hash)
     
     # Determine storage info
     storage_methods = []
@@ -1843,6 +1917,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
