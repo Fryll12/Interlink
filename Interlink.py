@@ -193,7 +193,7 @@ def init_database():
         
     except Exception as e:
         print(f"❌ Database connection failed: {e}")
-        print("📄 Falling back to JSONBin.io storage")
+        print("🔄 Falling back to JSONBin.io storage")
         return False
 
 # --- DATABASE FUNCTIONS ---
@@ -481,7 +481,7 @@ async def auth(ctx):
         f'&redirect_uri={REDIRECT_URI}&response_type=code&scope=identify%20guilds.join'
     )
     embed = discord.Embed(
-        title="🔓 Ủy quyền cho Bot",
+        title="🔐 Ủy quyền cho Bot",
         description=f"Nhấp vào link bên dưới để cho phép bot thêm bạn vào các server:",
         color=0x00ff00
     )
@@ -857,117 +857,473 @@ def index():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Discord Bot Authorization</title>
+        <title>Discord Detective Bureau - Authorization Portal</title>
+        <link href="https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap" rel="stylesheet">
         <style>
-            body {{
-                font-family: 'Segoe UI', Arial, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                text-align: center;
-                padding: 30px;
+            @import url('https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap');
+            
+            :root {{
+                --dark-fog: #1a1a1a;
+                --deep-shadow: #0d0d0d;
+                --blood-red: #8B0000;
+                --old-gold: #DAA520;
+                --mysterious-green: #2F4F2F;
+                --london-fog: rgba(105, 105, 105, 0.3);
+                --Victorian-brown: #654321;
+            }}
+            
+            * {{
                 margin: 0;
+                padding: 0;
+                box-sizing: border-box;
             }}
+            
+            body {{
+                font-family: 'Griffy', cursive;
+                background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
+                color: #e0e0e0;
+                min-height: 100vh;
+                position: relative;
+                overflow-x: hidden;
+            }}
+            
+            /* Victorian wallpaper pattern */
+            body::before {{
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: 
+                    radial-gradient(circle at 25% 25%, var(--london-fog) 2px, transparent 2px),
+                    radial-gradient(circle at 75% 75%, var(--london-fog) 1px, transparent 1px);
+                background-size: 50px 50px;
+                opacity: 0.1;
+                z-index: -1;
+            }}
+            
+            /* Fog effect */
+            body::after {{
+                content: '';
+                position: fixed;
+                bottom: -50px;
+                left: -50px;
+                width: 120%;
+                height: 300px;
+                background: linear-gradient(180deg, transparent 0%, var(--london-fog) 50%, rgba(105, 105, 105, 0.5) 100%);
+                z-index: -1;
+                animation: fogDrift 20s ease-in-out infinite;
+            }}
+            
+            @keyframes fogDrift {{
+                0%, 100% {{ transform: translateX(-20px); opacity: 0.3; }}
+                50% {{ transform: translateX(20px); opacity: 0.6; }}
+            }}
+            
+            .detective-header {{
+                text-align: center;
+                padding: 30px 20px;
+                position: relative;
+            }}
+            
+            .main-title {{
+                font-family: 'UnifrakturMaguntia', cursive;
+                font-size: 3.5em;
+                color: var(--old-gold);
+                text-shadow: 
+                    3px 3px 0px var(--blood-red),
+                    6px 6px 10px rgba(0, 0, 0, 0.8),
+                    0px 0px 30px rgba(218, 165, 32, 0.3);
+                margin-bottom: 10px;
+                animation: mysterySway 4s ease-in-out infinite;
+            }}
+            
+            @keyframes mysterySway {{
+                0%, 100% {{ transform: rotate(-1deg) scale(1); }}
+                50% {{ transform: rotate(1deg) scale(1.02); }}
+            }}
+            
+            .subtitle {{
+                font-family: 'Creepster', cursive;
+                font-size: 1.5em;
+                color: var(--blood-red);
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+                letter-spacing: 3px;
+                animation: ghostlyGlow 3s ease-in-out infinite alternate;
+            }}
+            
+            @keyframes ghostlyGlow {{
+                from {{ text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8), 0 0 10px var(--blood-red); }}
+                to {{ text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8), 0 0 20px var(--blood-red), 0 0 30px var(--blood-red); }}
+            }}
+            
             .container {{
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(10px);
-                border-radius: 20px;
-                padding: 40px;
-                max-width: 700px;
+                max-width: 900px;
                 margin: 0 auto;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                padding: 0 20px;
             }}
-            .btn {{
-                background: linear-gradient(135deg, #7289da, #5865f2);
-                color: white;
-                padding: 15px 30px;
-                border: none;
-                border-radius: 10px;
-                font-size: 18px;
-                font-weight: 600;
-                text-decoration: none;
-                display: inline-block;
-                margin: 20px;
-                transition: all 0.3s ease;
-                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            }}
-            .btn:hover {{
-                background: linear-gradient(135deg, #5865f2, #4752c4);
-                transform: translateY(-2px);
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-            }}
-            .info-box {{
-                background: rgba(255, 255, 255, 0.1);
+            
+            .evidence-box {{
+                background: linear-gradient(145deg, rgba(20, 20, 20, 0.9), rgba(40, 40, 40, 0.9));
+                border: 2px solid var(--old-gold);
                 border-radius: 15px;
-                padding: 20px;
+                padding: 30px;
                 margin: 20px 0;
-                border-left: 4px solid #00d4aa;
+                box-shadow: 
+                    inset 0 0 30px rgba(0, 0, 0, 0.5),
+                    0 8px 25px rgba(0, 0, 0, 0.7),
+                    0 0 50px rgba(218, 165, 32, 0.1);
+                position: relative;
+                backdrop-filter: blur(5px);
             }}
+            
+            .evidence-box::before {{
+                content: '';
+                position: absolute;
+                top: -2px;
+                left: -2px;
+                right: -2px;
+                bottom: -2px;
+                background: linear-gradient(45deg, var(--old-gold), var(--blood-red), var(--old-gold));
+                border-radius: 15px;
+                z-index: -1;
+                opacity: 0.3;
+            }}
+            
+            .case-file-header {{
+                font-family: 'Nosifer', cursive;
+                font-size: 2em;
+                color: var(--old-gold);
+                text-align: center;
+                margin-bottom: 20px;
+                text-shadow: 
+                    2px 2px 0px var(--blood-red),
+                    4px 4px 8px rgba(0, 0, 0, 0.8);
+                animation: ominousFlicker 2s ease-in-out infinite;
+            }}
+            
+            @keyframes ominousFlicker {{
+                0%, 94%, 100% {{ opacity: 1; }}
+                95%, 97% {{ opacity: 0.8; }}
+            }}
+            
+            .warning-stamp {{
+                position: absolute;
+                top: 10px;
+                right: 20px;
+                background: var(--blood-red);
+                color: white;
+                padding: 5px 15px;
+                border-radius: 0;
+                transform: rotate(12deg);
+                font-family: 'Griffy', cursive;
+                font-weight: bold;
+                font-size: 0.9em;
+                box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.6);
+                border: 2px dashed white;
+            }}
+            
+            .authorize-btn {{
+                display: inline-block;
+                background: linear-gradient(145deg, var(--blood-red), #a00000, var(--blood-red));
+                color: #ffffff;
+                padding: 20px 40px;
+                text-decoration: none;
+                border-radius: 10px;
+                font-family: 'Griffy', cursive;
+                font-size: 1.3em;
+                font-weight: bold;
+                letter-spacing: 2px;
+                text-align: center;
+                margin: 20px auto;
+                display: block;
+                width: fit-content;
+                transition: all 0.4s ease;
+                box-shadow: 
+                    0 8px 25px rgba(139, 0, 0, 0.4),
+                    inset 0 0 20px rgba(255, 255, 255, 0.1);
+                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+                position: relative;
+                overflow: hidden;
+            }}
+            
+            .authorize-btn::before {{
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+                transition: left 0.5s;
+            }}
+            
+            .authorize-btn:hover::before {{
+                left: 100%;
+            }}
+            
+            .authorize-btn:hover {{
+                background: linear-gradient(145deg, #a00000, var(--blood-red), #a00000);
+                transform: translateY(-3px) scale(1.05);
+                box-shadow: 
+                    0 15px 35px rgba(139, 0, 0, 0.6),
+                    inset 0 0 30px rgba(255, 255, 255, 0.2),
+                    0 0 50px rgba(139, 0, 0, 0.3);
+            }}
+            
             .status-grid {{
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 15px;
-                margin: 20px 0;
+                gap: 20px;
+                margin: 25px 0;
             }}
+            
             .status-item {{
-                background: rgba(255, 255, 255, 0.08);
-                padding: 15px;
-                border-radius: 10px;
-                font-size: 14px;
-            }}
-            .commands {{
-                text-align: left;
-                background: rgba(0, 0, 0, 0.2);
+                background: linear-gradient(135deg, rgba(47, 79, 79, 0.3), rgba(20, 20, 20, 0.8));
                 padding: 20px;
                 border-radius: 10px;
-                margin: 20px 0;
+                border: 1px solid var(--mysterious-green);
+                text-align: center;
+                position: relative;
+                overflow: hidden;
             }}
-            .commands code {{
-                background: rgba(255, 255, 255, 0.2);
-                padding: 2px 6px;
-                border-radius: 4px;
+            
+            .status-item::before {{
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 2px;
+                background: var(--old-gold);
+                animation: scanLine 3s linear infinite;
+            }}
+            
+            @keyframes scanLine {{
+                0% {{ left: -100%; }}
+                50% {{ left: 100%; }}
+                100% {{ left: 100%; }}
+            }}
+            
+            .status-label {{
+                font-family: 'Creepster', cursive;
+                color: var(--old-gold);
+                font-size: 1.1em;
+                margin-bottom: 8px;
+                text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            }}
+            
+            .commands-section {{
+                background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(20, 20, 20, 0.9));
+                border: 2px solid var(--Victorian-brown);
+                border-radius: 10px;
+                padding: 25px;
+                margin: 25px 0;
+                position: relative;
+            }}
+            
+            .commands-section::before {{
+                content: '📋';
+                position: absolute;
+                top: -15px;
+                left: 20px;
+                background: var(--Victorian-brown);
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-size: 1.5em;
+            }}
+            
+            .command-title {{
+                font-family: 'Nosifer', cursive;
+                color: var(--old-gold);
+                font-size: 1.5em;
+                margin-bottom: 15px;
+                text-align: center;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+            }}
+            
+            .command-item {{
+                margin: 10px 0;
+                padding: 8px 0;
+                border-bottom: 1px dotted var(--mysterious-green);
+            }}
+            
+            .command-code {{
                 font-family: 'Courier New', monospace;
+                background: rgba(47, 79, 79, 0.3);
+                color: var(--old-gold);
+                padding: 3px 8px;
+                border-radius: 4px;
+                border: 1px solid var(--mysterious-green);
+                font-weight: bold;
             }}
-            h1 {{ margin-top: 0; font-size: 2.5em; }}
-            h3 {{ color: #00d4aa; margin-bottom: 10px; }}
+            
+            .command-desc {{
+                color: #cccccc;
+                margin-left: 10px;
+            }}
+            
+            .security-notice {{
+                background: linear-gradient(135deg, rgba(139, 0, 0, 0.2), rgba(0, 0, 0, 0.8));
+                border: 2px solid var(--blood-red);
+                border-radius: 10px;
+                padding: 20px;
+                margin: 20px 0;
+                position: relative;
+            }}
+            
+            .security-notice::before {{
+                content: '🔒';
+                position: absolute;
+                top: -15px;
+                left: 20px;
+                background: var(--blood-red);
+                padding: 5px 10px;
+                border-radius: 5px;
+                font-size: 1.5em;
+            }}
+            
+            .security-title {{
+                font-family: 'Creepster', cursive;
+                color: var(--blood-red);
+                font-size: 1.3em;
+                margin-bottom: 10px;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+            }}
+            
+            .security-list {{
+                list-style: none;
+                padding: 0;
+            }}
+            
+            .security-list li {{
+                margin: 8px 0;
+                padding-left: 20px;
+                position: relative;
+            }}
+            
+            .security-list li::before {{
+                content: '🛡️';
+                position: absolute;
+                left: 0;
+                top: 0;
+            }}
+            
+            .footer-signature {{
+                text-align: center;
+                margin-top: 40px;
+                padding: 20px;
+                font-family: 'UnifrakturMaguntia', cursive;
+                color: var(--old-gold);
+                font-size: 1.1em;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+                border-top: 2px dotted var(--Victorian-brown);
+            }}
+            
+            /* Responsive design */
+            @media (max-width: 768px) {{
+                .main-title {{
+                    font-size: 2.5em;
+                }}
+                
+                .subtitle {{
+                    font-size: 1.2em;
+                    letter-spacing: 1px;
+                }}
+                
+                .status-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                
+                .evidence-box {{
+                    padding: 20px;
+                }}
+                
+                .authorize-btn {{
+                    font-size: 1.1em;
+                    padding: 15px 30px;
+                }}
+            }}
         </style>
     </head>
     <body>
+        <div class="detective-header">
+            <h1 class="main-title">DETECTIVE BUREAU</h1>
+            <p class="subtitle">~ Discord Authorization Portal ~</p>
+        </div>
+        
         <div class="container">
-            <h1>🤖 Discord Bot Authorization</h1>
-            <p style="font-size: 1.2em;">Chào mừng bạn đến với hệ thống ủy quyền Discord Bot!</p>
-            
-            <div class="info-box">
-                <h3>☁️ Cloud Storage</h3>
-                <p>Token của bạn sẽ được lưu an toàn trên cloud và không bị mất khi restart service</p>
+            <div class="evidence-box">
+                <div class="warning-stamp">CONFIDENTIAL</div>
+                <h2 class="case-file-header">🕵️ CASE FILE: DISCORD INFILTRATION 🕵️</h2>
+                <p style="font-size: 1.2em; line-height: 1.6; text-align: center; margin-bottom: 20px;">
+                    Welcome, Agent. Your mission, should you choose to accept it, is to grant our surveillance bot access to your Discord identity. This classified operation will allow seamless infiltration across multiple Discord servers.
+                </p>
+                
                 <div class="status-grid">
                     <div class="status-item">
-                        <strong>🗃️ Database:</strong><br>{db_status}
+                        <div class="status-label">🗃️ Evidence Vault</div>
+                        <div>{db_status}</div>
                     </div>
                     <div class="status-item">
-                        <strong>🌐 JSONBin.io:</strong><br>{jsonbin_status}
+                        <div class="status-label">🌐 Shadow Network</div>
+                        <div>{jsonbin_status}</div>
                     </div>
+                </div>
+                
+                <a href="{auth_url}" class="authorize-btn">
+                    🔐 AUTHORIZE INFILTRATION
+                </a>
+            </div>
+            
+            <div class="commands-section">
+                <h3 class="command-title">🔍 FIELD OPERATIVE COMMANDS</h3>
+                <div class="command-item">
+                    <span class="command-code">!auth</span>
+                    <span class="command-desc">- Request authorization credentials</span>
+                </div>
+                <div class="command-item">
+                    <span class="command-code">!add_me</span>
+                    <span class="command-desc">- Deploy agent to all connected servers</span>
+                </div>
+                <div class="command-item">
+                    <span class="command-code">!check_token</span>
+                    <span class="command-desc">- Verify clearance status</span>
+                </div>
+                <div class="command-item">
+                    <span class="command-code">!status</span>
+                    <span class="command-desc">- System diagnostic report</span>
+                </div>
+                <hr style="border: 1px solid var(--mysterious-green); margin: 15px 0; opacity: 0.5;">
+                <p style="text-align: center; color: var(--old-gold); font-family: 'Creepster', cursive; font-size: 1.1em;">
+                    <strong>🕴️ HANDLER EXCLUSIVE COMMANDS 🕴️</strong>
+                </p>
+                <div class="command-item">
+                    <span class="command-code">!invite &lt;Target_ID&gt;</span>
+                    <span class="command-desc">- Strategic server deployment interface</span>
+                </div>
+                <div class="command-item">
+                    <span class="command-code">!force_add &lt;Target_ID&gt;</span>
+                    <span class="command-desc">- Emergency mass deployment protocol</span>
                 </div>
             </div>
             
-            <a href="{auth_url}" class="btn">🔑 Đăng nhập với Discord</a>
-            
-            <div class="commands">
-                <h3>📋 Các lệnh bot:</h3>
-                <p><code>!auth</code> - Lấy link ủy quyền</p>
-                <p><code>!add_me</code> - Thêm bạn vào server</p>
-                <p><code>!check_token</code> - Kiểm tra trạng thái token</p>
-                <p><code>!status</code> - Trạng thái bot và storage</p>
-                <hr style="border: 1px solid rgba(255,255,255,0.3); margin: 15px 0;">
-                <p><strong>Lệnh chủ bot:</strong></p>
-                <p><code>!invite &lt;User_ID&gt;</code> - Giao diện mời người dùng</p>
-                <p><code>!force_add &lt;User_ID&gt;</code> - Thêm người dùng bất kỳ</p>
+            <div class="security-notice">
+                <h3 class="security-title">🔒 CLASSIFIED SECURITY PROTOCOLS</h3>
+                <ul class="security-list">
+                    <li>All credentials encrypted with military-grade protection</li>
+                    <li>No Discord passwords stored in our archives</li>
+                    <li>Minimal access permissions for covert operations</li>
+                    <li>Secure cloud storage with redundant backup systems</li>
+                </ul>
             </div>
             
-            <div class="info-box">
-                <h3>🔒 Bảo mật</h3>
-                <p>• Token được mã hóa và lưu trữ an toàn<br>
-                • Không lưu trữ mật khẩu Discord<br>
-                • Chỉ sử dụng quyền cần thiết</p>
+            <div class="footer-signature">
+                ~ Department of Digital Mysteries ~<br>
+                <small style="font-family: 'Griffy', cursive; font-size: 0.9em;">
+                    "In shadows we trust, through code we infiltrate"
+                </small>
             </div>
         </div>
     </body>
@@ -978,7 +1334,7 @@ def index():
 def callback():
     code = request.args.get('code')
     if not code:
-        return "❌ Lỗi: Không nhận được mã ủy quyền từ Discord.", 400
+        return "❌ Error: Authorization code not received from Discord.", 400
 
     token_url = 'https://discord.com/api/v10/oauth2/token'
     payload = {
@@ -1014,11 +1370,11 @@ def callback():
     # Determine storage info
     storage_methods = []
     if get_db_connection():
-        storage_methods.append("PostgreSQL Database")
+        storage_methods.append("Evidence Vault (PostgreSQL)")
     if JSONBIN_API_KEY:
-        storage_methods.append("JSONBin.io Cloud")
+        storage_methods.append("Shadow Network (JSONBin.io)")
     if not storage_methods:
-        storage_methods.append("Local JSON (fallback)")
+        storage_methods.append("Local Archive (JSON)")
     
     storage_info = " + ".join(storage_methods)
 
@@ -1026,64 +1382,388 @@ def callback():
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Ủy quyền thành công!</title>
+        <title>Mission Accomplished - Detective Bureau</title>
+        <link href="https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap" rel="stylesheet">
         <style>
-            body {{
-                font-family: 'Segoe UI', Arial, sans-serif;
-                background: linear-gradient(135deg, #00d4aa 0%, #667eea 100%);
-                color: white;
-                text-align: center;
-                padding: 50px;
+            @import url('https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap');
+            
+            :root {{
+                --dark-fog: #1a1a1a;
+                --deep-shadow: #0d0d0d;
+                --blood-red: #8B0000;
+                --old-gold: #DAA520;
+                --mysterious-green: #2F4F2F;
+                --london-fog: rgba(105, 105, 105, 0.3);
+                --Victorian-brown: #654321;
+                --success-green: #006400;
+            }}
+            
+            * {{
                 margin: 0;
+                padding: 0;
+                box-sizing: border-box;
             }}
-            .container {{
-                background: rgba(255, 255, 255, 0.15);
-                backdrop-filter: blur(15px);
+            
+            body {{
+                font-family: 'Griffy', cursive;
+                background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
+                color: #e0e0e0;
+                min-height: 100vh;
+                position: relative;
+                overflow-x: hidden;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }}
+            
+            /* Mysterious background pattern */
+            body::before {{
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-image: 
+                    radial-gradient(circle at 25% 25%, var(--london-fog) 2px, transparent 2px),
+                    radial-gradient(circle at 75% 75%, var(--london-fog) 1px, transparent 1px);
+                background-size: 50px 50px;
+                opacity: 0.15;
+                z-index: -1;
+                animation: patternShift 30s linear infinite;
+            }}
+            
+            @keyframes patternShift {{
+                0% {{ transform: translateX(0) translateY(0); }}
+                25% {{ transform: translateX(-25px) translateY(-25px); }}
+                50% {{ transform: translateX(-50px) translateY(0); }}
+                75% {{ transform: translateX(-25px) translateY(25px); }}
+                100% {{ transform: translateX(0) translateY(0); }}
+            }}
+            
+            /* Success fog effect */
+            body::after {{
+                content: '';
+                position: fixed;
+                bottom: -50px;
+                left: -50px;
+                width: 120%;
+                height: 300px;
+                background: linear-gradient(180deg, transparent 0%, rgba(0, 100, 0, 0.1) 50%, rgba(0, 100, 0, 0.2) 100%);
+                z-index: -1;
+                animation: successFogDrift 15s ease-in-out infinite;
+            }}
+            
+            @keyframes successFogDrift {{
+                0%, 100% {{ transform: translateX(-30px) translateY(10px); opacity: 0.2; }}
+                50% {{ transform: translateX(30px) translateY(-10px); opacity: 0.4; }}
+            }}
+            
+            .success-container {{
+                background: linear-gradient(145deg, rgba(20, 20, 20, 0.95), rgba(40, 40, 40, 0.95));
+                border: 3px solid var(--success-green);
                 border-radius: 20px;
-                padding: 40px;
-                max-width: 600px;
-                margin: 0 auto;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                padding: 50px;
+                max-width: 700px;
+                width: 90%;
+                text-align: center;
+                box-shadow: 
+                    inset 0 0 50px rgba(0, 0, 0, 0.5),
+                    0 20px 50px rgba(0, 0, 0, 0.8),
+                    0 0 80px rgba(0, 100, 0, 0.2);
+                position: relative;
+                backdrop-filter: blur(10px);
             }}
+            
+            .success-container::before {{
+                content: '';
+                position: absolute;
+                top: -3px;
+                left: -3px;
+                right: -3px;
+                bottom: -3px;
+                background: linear-gradient(45deg, var(--success-green), var(--old-gold), var(--success-green));
+                border-radius: 20px;
+                z-index: -1;
+                opacity: 0.4;
+                animation: borderGlow 3s ease-in-out infinite;
+            }}
+            
+            @keyframes borderGlow {{
+                0%, 100% {{ opacity: 0.4; }}
+                50% {{ opacity: 0.8; }}
+            }}
+            
+            .mission-stamp {{
+                position: absolute;
+                top: -20px;
+                right: 30px;
+                background: var(--success-green);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 0;
+                transform: rotate(-8deg);
+                font-family: 'Griffy', cursive;
+                font-weight: bold;
+                font-size: 1.1em;
+                box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.7);
+                border: 3px dashed white;
+                animation: stampPulse 2s ease-in-out infinite;
+            }}
+            
+            @keyframes stampPulse {{
+                0%, 100% {{ transform: rotate(-8deg) scale(1); }}
+                50% {{ transform: rotate(-8deg) scale(1.05); }}
+            }}
+            
             .success-icon {{
-                font-size: 4em;
+                font-size: 5em;
                 margin-bottom: 20px;
-                animation: pulse 2s infinite;
+                animation: victoryPulse 2s ease-in-out infinite;
+                color: var(--success-green);
+                text-shadow: 0 0 30px var(--success-green);
             }}
-            @keyframes pulse {{
-                0% {{ transform: scale(1); }}
-                50% {{ transform: scale(1.1); }}
-                100% {{ transform: scale(1); }}
+            
+            @keyframes victoryPulse {{
+                0%, 100% {{ transform: scale(1) rotate(0deg); }}
+                25% {{ transform: scale(1.1) rotate(-5deg); }}
+                50% {{ transform: scale(1.2) rotate(0deg); }}
+                75% {{ transform: scale(1.1) rotate(5deg); }}
             }}
-            .info-box {{
-                background: rgba(255, 255, 255, 0.1);
+            
+            .success-title {{
+                font-family: 'UnifrakturMaguntia', cursive;
+                font-size: 3em;
+                color: var(--old-gold);
+                text-shadow: 
+                    3px 3px 0px var(--success-green),
+                    6px 6px 15px rgba(0, 0, 0, 0.8),
+                    0px 0px 40px rgba(218, 165, 32, 0.5);
+                margin-bottom: 15px;
+                animation: titleGlow 3s ease-in-out infinite alternate;
+            }}
+            
+            @keyframes titleGlow {{
+                from {{ text-shadow: 3px 3px 0px var(--success-green), 6px 6px 15px rgba(0, 0, 0, 0.8), 0px 0px 40px rgba(218, 165, 32, 0.5); }}
+                to {{ text-shadow: 3px 3px 0px var(--success-green), 6px 6px 15px rgba(0, 0, 0, 0.8), 0px 0px 60px rgba(218, 165, 32, 0.8); }}
+            }}
+            
+            .agent-welcome {{
+                font-family: 'Creepster', cursive;
+                font-size: 1.8em;
+                color: var(--success-green);
+                margin-bottom: 30px;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+                animation: welcomeFlicker 4s ease-in-out infinite;
+            }}
+            
+            @keyframes welcomeFlicker {{
+                0%, 90%, 100% {{ opacity: 1; }}
+                95% {{ opacity: 0.8; }}
+            }}
+            
+            .info-classified {{
+                background: linear-gradient(135deg, rgba(0, 100, 0, 0.2), rgba(0, 0, 0, 0.8));
+                border: 2px solid var(--success-green);
+                border-radius: 15px;
+                padding: 25px;
+                margin: 25px 0;
+                position: relative;
+            }}
+            
+            .info-classified::before {{
+                content: '💾';
+                position: absolute;
+                top: -18px;
+                left: 25px;
+                background: var(--success-green);
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 1.5em;
+            }}
+            
+            .classified-header {{
+                font-family: 'Nosifer', cursive;
+                color: var(--old-gold);
+                font-size: 1.4em;
+                margin-bottom: 15px;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+            }}
+            
+            .storage-info {{
+                background: linear-gradient(135deg, rgba(47, 79, 79, 0.3), rgba(20, 20, 20, 0.9));
+                padding: 20px;
                 border-radius: 10px;
-                padding: 15px;
+                border: 1px solid var(--mysterious-green);
                 margin: 15px 0;
-                border-left: 4px solid #00ff88;
+                position: relative;
+                overflow: hidden;
             }}
-            h1 {{ margin-top: 0; color: #00ff88; }}
+            
+            .storage-info::before {{
+                content: '';
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 3px;
+                background: var(--success-green);
+                animation: secureTransfer 4s linear infinite;
+            }}
+            
+            @keyframes secureTransfer {{
+                0% {{ left: -100%; }}
+                50% {{ left: 100%; }}
+                100% {{ left: 100%; }}
+            }}
+            
+            .next-steps {{
+                background: linear-gradient(135deg, rgba(139, 0, 0, 0.2), rgba(0, 0, 0, 0.8));
+                border: 2px solid var(--blood-red);
+                border-radius: 15px;
+                padding: 25px;
+                margin: 25px 0;
+                position: relative;
+            }}
+            
+            .next-steps::before {{
+                content: '🚀';
+                position: absolute;
+                top: -18px;
+                left: 25px;
+                background: var(--blood-red);
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 1.5em;
+            }}
+            
+            .command-highlight {{
+                font-family: 'Courier New', monospace;
+                background: rgba(139, 0, 0, 0.3);
+                color: var(--old-gold);
+                padding: 5px 12px;
+                border-radius: 6px;
+                border: 2px solid var(--blood-red);
+                font-weight: bold;
+                font-size: 1.1em;
+                display: inline-block;
+                margin: 10px 5px;
+                animation: commandPulse 3s ease-in-out infinite;
+            }}
+            
+            @keyframes commandPulse {{
+                0%, 100% {{ box-shadow: 0 0 10px rgba(139, 0, 0, 0.3); }}
+                50% {{ box-shadow: 0 0 20px rgba(139, 0, 0, 0.6), inset 0 0 10px rgba(139, 0, 0, 0.2); }}
+            }}
+            
+            .security-assurance {{
+                background: linear-gradient(135deg, rgba(47, 79, 79, 0.2), rgba(0, 0, 0, 0.8));
+                border: 2px solid var(--mysterious-green);
+                border-radius: 15px;
+                padding: 25px;
+                margin: 25px 0;
+                position: relative;
+            }}
+            
+            .security-assurance::before {{
+                content: '🛡️';
+                position: absolute;
+                top: -18px;
+                left: 25px;
+                background: var(--mysterious-green);
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 1.5em;
+            }}
+            
+            .security-list {{
+                list-style: none;
+                padding: 0;
+            }}
+            
+            .security-list li {{
+                margin: 12px 0;
+                padding-left: 25px;
+                position: relative;
+                color: #cccccc;
+            }}
+            
+            .security-list li::before {{
+                content: '🔐';
+                position: absolute;
+                left: 0;
+                top: 0;
+            }}
+            
+            .signature-footer {{
+                margin-top: 40px;
+                padding-top: 25px;
+                border-top: 3px dotted var(--Victorian-brown);
+                font-family: 'UnifrakturMaguntia', cursive;
+                color: var(--old-gold);
+                font-size: 1.2em;
+                text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.8);
+            }}
+            
+            /* Responsive design */
+            @media (max-width: 768px) {{
+                .success-container {{
+                    padding: 30px;
+                    width: 95%;
+                }}
+                
+                .success-title {{
+                    font-size: 2.2em;
+                }}
+                
+                .agent-welcome {{
+                    font-size: 1.4em;
+                }}
+                
+                .success-icon {{
+                    font-size: 4em;
+                }}
+            }}
         </style>
     </head>
     <body>
-        <div class="container">
+        <div class="success-container">
+            <div class="mission-stamp">AUTHORIZED</div>
+            
             <div class="success-icon">✅</div>
-            <h1>Thành công!</h1>
-            <p style="font-size: 1.3em;">Cảm ơn <strong>{username}</strong>!</p>
+            <h1 class="success-title">MISSION ACCOMPLISHED</h1>
+            <p class="agent-welcome">Welcome to the Bureau, Agent <strong>{username}</strong>!</p>
             
-            <div class="info-box">
-                <strong>💾 Token đã được lưu vào:</strong><br>
-                {storage_info}
+            <div class="info-classified">
+                <h3 class="classified-header">🔐 CREDENTIALS SECURED</h3>
+                <div class="storage-info">
+                    <strong>📁 Archived in:</strong><br>
+                    <span style="color: var(--success-green); font-weight: bold;">{storage_info}</span>
+                </div>
             </div>
             
-            <div class="info-box">
-                <strong>🚀 Sử dụng ngay:</strong><br>
-                Gõ <code>!add_me</code> trong Discord để vào server
+            <div class="next-steps">
+                <h3 class="classified-header" style="color: var(--blood-red);">🎯 IMMEDIATE DEPLOYMENT</h3>
+                <p style="margin-bottom: 15px; color: #cccccc;">Your authorization is now active. Deploy using the command:</p>
+                <div class="command-highlight">!add_me</div>
+                <p style="margin-top: 15px; color: #cccccc; font-size: 0.9em;">Execute this command in any Discord channel where our surveillance bot is present.</p>
             </div>
             
-            <div class="info-box">
-                <strong>🔒 Bảo mật:</strong><br>
-                Token được lưu trữ an toàn trên cloud và không bị mất khi service restart
+            <div class="security-assurance">
+                <h3 class="classified-header" style="color: var(--mysterious-green);">🛡️ SECURITY PROTOCOLS ACTIVE</h3>
+                <ul class="security-list">
+                    <li>Credentials encrypted with quantum-level protection</li>
+                    <li>Zero Discord password retention in our systems</li>
+                    <li>Minimal access footprint for stealth operations</li>
+                    <li>Multi-redundant secure cloud archival system</li>
+                </ul>
+            </div>
+            
+            <div class="signature-footer">
+                <p>~ Operation Successfully Initiated ~</p>
+                <small style="font-family: 'Griffy', cursive; font-size: 0.8em; color: var(--mysterious-green);">
+                    "Your digital identity is now part of our covert network"
+                </small>
             </div>
         </div>
     </body>
@@ -1162,6 +1842,6 @@ if __name__ == '__main__':
         
     except Exception as e:
         print(f"❌ Startup error: {e}")
-        print("📄 Keeping web server alive...")
+        print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
