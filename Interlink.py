@@ -846,10 +846,10 @@ async def migrate_tokens(ctx, source: str = None, target: str = None):
     
     await ctx.send(embed=embed)
 
-@bot.command(name='roster', help='(Owner only) Displays a visual roster of all agents from JSONBin.')
+@bot.command(name='roster', help='(Owner only) Displays a visual roster of all agents.')
 @commands.is_owner()
 async def roster(ctx):
-    """Displays a visual roster of all authorized agents from JSONBin."""
+    """Displays a visual roster with names for all authorized agents from JSONBin."""
     await ctx.send("Accessing network archives and generating visual roster... This may take a moment.")
 
     try:
@@ -859,36 +859,36 @@ async def roster(ctx):
             return
 
         agents = [
-            {'id': uid, 'avatar_hash': data.get('avatar_hash')}
-            for uid, data in agent_data.items() if isinstance(data, dict) and data.get('avatar_hash')
+            {'id': uid, 'username': data.get('username', 'N/A'), 'avatar_hash': data.get('avatar_hash')}
+            for uid, data in agent_data.items() if isinstance(data, dict)
         ]
 
         if not agents:
-            await ctx.send("❌ **Error:** No agents with avatar data found.")
+            await ctx.send("❌ **Error:** No agent data found.")
             return
-
-        # --- Logic Tạo Ảnh Ghép ---
+            
+        # --- Logic Tạo Ảnh Ghép (giữ nguyên) ---
         avatar_size = 128
         padding = 10
         cols = 5
         rows = (len(agents) + cols - 1) // cols
-
+        
         canvas_width = (avatar_size * cols) + (padding * (cols + 1))
         canvas_height = (avatar_size * rows) + (padding * (rows + 1))
-
+        
         canvas = Image.new('RGBA', (canvas_width, canvas_height), (44, 47, 51, 255))
 
         current_x, current_y = padding, padding
         for i, agent in enumerate(agents):
-            avatar_url = f"https://cdn.discordapp.com/avatars/{agent['id']}/{agent['avatar_hash']}.png?size=128"
-            try:
-                response = requests.get(avatar_url, stream=True)
-                response.raise_for_status()
-                avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
-
-                canvas.paste(avatar_img, (current_x, current_y))
-            except Exception as e:
-                print(f"Could not load avatar for {agent['id']}: {e}")
+            if agent['avatar_hash']:
+                avatar_url = f"https://cdn.discordapp.com/avatars/{agent['id']}/{agent['avatar_hash']}.png?size=128"
+                try:
+                    response = requests.get(avatar_url, stream=True)
+                    response.raise_for_status()
+                    avatar_img = Image.open(io.BytesIO(response.content)).convert("RGBA")
+                    canvas.paste(avatar_img, (current_x, current_y))
+                except Exception as e:
+                    print(f"Could not load avatar for {agent['id']}: {e}")
 
             current_x += avatar_size + padding
             if (i + 1) % cols == 0:
@@ -898,13 +898,21 @@ async def roster(ctx):
         buffer = io.BytesIO()
         canvas.save(buffer, 'PNG')
         buffer.seek(0)
-
+        
         discord_file = discord.File(buffer, filename="roster.png")
         # --- Kết Thúc Logic Tạo Ảnh ---
+        
+        # --- PHẦN MỚI: Tạo danh sách tên ---
+        description_list = []
+        for agent in agents:
+            description_list.append(f"👤 **{agent['username']}** `(ID: {agent['id']})`")
+        
+        description_text = "\n".join(description_list)
+        # --- KẾT THÚC PHẦN MỚI ---
 
         embed = discord.Embed(
             title=f"AGENT ROSTER ({len(agents)} Active)",
-            description="Visual confirmation of all operatives in the network.",
+            description=description_text, # <--- SỬA Ở ĐÂY
             color=discord.Color.dark_grey()
         )
         embed.set_image(url="attachment://roster.png")
@@ -1919,6 +1927,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
