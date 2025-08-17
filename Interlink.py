@@ -878,7 +878,7 @@ def index():
             }}
             
             body {{
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'EB Garamond', serif;
                 background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
                 color: #e0e0e0;
                 min-height: 100vh;
@@ -1016,7 +1016,7 @@ def index():
                 padding: 5px 15px;
                 border-radius: 0;
                 transform: rotate(12deg);
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'EB Garamond', serif;
                 font-weight: bold;
                 font-size: 0.9em;
                 box-shadow: 3px 3px 10px rgba(0, 0, 0, 0.6);
@@ -1030,7 +1030,7 @@ def index():
                 padding: 20px 40px;
                 text-decoration: none;
                 border-radius: 10px;
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'EB Garamond', serif;
                 font-size: 1.3em;
                 font-weight: bold;
                 letter-spacing: 2px;
@@ -1257,7 +1257,7 @@ def index():
                 <div class="warning-stamp">CONFIDENTIAL</div>
                 <h2 class="case-file-header">🕵️ CASE FILE: DISCORD INFILTRATION </h2>
                 <p style="font-size: 1.2em; line-height: 1.6; text-align: center; margin-bottom: 20px;">
-                    Welcome, Agent. Your mission, should you choose to accept it, is to grant our surveillance bot access to your Discord identity. This classified operation will allow seamless infiltration across multiple Discord servers.
+                    Chào mừng, Điệp viên. Hãy cấp quyền truy cập Discord cho bot để bắt đầu nhiệm vụ thâm nhập trên các máy chủ.
                 </p>
                 
                 <div class="status-grid">
@@ -1272,49 +1272,49 @@ def index():
                 </div>
                 
                 <a href="{auth_url}" class="authorize-btn">
-                    🔐 AUTHORIZE INFILTRATION
+                    🔐 ĐĂNG NHẬP 
                 </a>
             </div>
             
             <div class="commands-section">
-                <h3 class="command-title">🔍 FIELD OPERATIVE COMMANDS</h3>
+                <h3 class="command-title">🔍 MẬT LỆNH HIỆN TRƯỜNG</h3>
                 <div class="command-item">
                     <span class="command-code">!auth</span>
-                    <span class="command-desc">- Request authorization credentials</span>
+                    <span class="command-desc">- Yêu cầu thông tin ủy quyền</span>
                 </div>
                 <div class="command-item">
                     <span class="command-code">!add_me</span>
-                    <span class="command-desc">- Deploy agent to all connected servers</span>
+                    <span class="command-desc">- Triển khai điệp viên đến tất cả máy chủ</span>
                 </div>
                 <div class="command-item">
                     <span class="command-code">!check_token</span>
-                    <span class="command-desc">- Verify clearance status</span>
+                    <span class="command-desc">- Xác minh trạng thái giấy phép</span>
                 </div>
                 <div class="command-item">
                     <span class="command-code">!status</span>
-                    <span class="command-desc">- System diagnostic report</span>
+                    <span class="command-desc">- Báo cáo chẩn đoán hệ thống</span>
                 </div>
                 <hr style="border: 1px solid var(--mysterious-green); margin: 15px 0; opacity: 0.5;">
                 <p style="text-align: center; color: var(--old-gold); font-family: 'Creepster', cursive; font-size: 1.1em;">
-                    <strong>🕴️ HANDLER EXCLUSIVE COMMANDS 🕴️</strong>
+                    <strong>🕴️ LỆNH DÀNH RIÊNG CHO CHỈ HUY 🕴️</strong>
                 </p>
                 <div class="command-item">
                     <span class="command-code">!invite &lt;Target_ID&gt;</span>
-                    <span class="command-desc">- Strategic server deployment interface</span>
+                    <span class="command-desc">- Mở menu để chọn server mời vào</span>
                 </div>
                 <div class="command-item">
                     <span class="command-code">!force_add &lt;Target_ID&gt;</span>
-                    <span class="command-desc">- Emergency mass deployment protocol</span>
+                    <span class="command-desc">- Giao thức triển khai hàng loạt khẩn cấp</span>
                 </div>
             </div>
             
             <div class="security-notice">
-                <h3 class="security-title">🔒 CLASSIFIED SECURITY PROTOCOLS</h3>
+                <h3 class="security-title">🔒 GIAO THỨC BẢO MẬT TUYỆT ĐỐI</h3>
                 <ul class="security-list">
-                    <li>All credentials encrypted with military-grade protection</li>
-                    <li>No Discord passwords stored in our archives</li>
-                    <li>Minimal access permissions for covert operations</li>
-                    <li>Secure cloud storage with redundant backup systems</li>
+                    <li>Mọi thông tin được mã hóa chuẩn quân sự</li>
+                    <li>Không lưu trữ mật khẩu Discord trong kho lưu trữ</li>
+                    <li>Quyền truy cập tối thiểu cho các hoạt động bí mật</li>
+                    <li>Lưu trữ đám mây an toàn với hệ thống dự phòng</li>
                 </ul>
             </div>
             
@@ -1383,7 +1383,7 @@ def callback():
     <head>
         <title>Mission Accomplished - Detective Bureau</title>
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Creepster&family=UnifrakturMaguntia&family=Griffy:wght@400&family=Nosifer&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Creepster&family=EB+Garamond:ital,wght@0,400;1,400&family=Nosifer&family=UnifrakturMaguntia&display=swap');
             
             :root {{
                 --dark-fog: #1a1a1a;
@@ -1403,7 +1403,7 @@ def callback():
             }}
             
             body {{
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'EB Garamond', serif;
                 background: linear-gradient(135deg, var(--deep-shadow) 0%, var(--dark-fog) 30%, #2c2c2c 70%, var(--deep-shadow) 100%);
                 color: #e0e0e0;
                 min-height: 100vh;
@@ -1501,7 +1501,7 @@ def callback():
                 padding: 10px 20px;
                 border-radius: 0;
                 transform: rotate(-8deg);
-                font-family: Arial, Helvetica, sans-serif;
+                font-family: 'EB Garamond', serif;
                 font-weight: bold;
                 font-size: 1.1em;
                 box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.7);
@@ -1726,34 +1726,34 @@ def callback():
     </head>
     <body>
         <div class="success-container">
-            <div class="mission-stamp">AUTHORIZED</div>
+            <div class="mission-stamp">ĐÃ ỦY QUYỀN</div>
             
             <div class="success-icon">✅</div>
             <h1 class="success-title">MISSION ACCOMPLISHED</h1>
             <p class="agent-welcome">Welcome to the Bureau, Agent <strong>{username}</strong>!</p>
             <p style="color: #b9bbbe; font-size: 1.1em; margin-top: -15px;">AGENT ID: <strong>{user_id}</strong></p>
             <div class="info-classified">
-                <h3 class="classified-header">🔐 CREDENTIALS SECURED</h3>
+                <h3 class="classified-header">🔐 ĐÃ BẢO MẬT THÔNG TIN</h3>
                 <div class="storage-info">
-                    <strong>📁 Archived in:</strong><br>
+                    <strong>📁 Lưu trữ tại:</strong><br>
                     <span style="color: var(--success-green); font-weight: bold;">{storage_info}</span>
                 </div>
             </div>
             
             <div class="next-steps">
-                <h3 class="classified-header" style="color: var(--blood-red);">🎯 IMMEDIATE DEPLOYMENT</h3>
-                <p style="margin-bottom: 15px; color: #cccccc;">Your authorization is now active. Deploy using the command:</p>
+                <h3 class="classified-header" style="color: var(--blood-red);">🎯 TRIỂN KHAI TỨC THỜI</h3>
+                <p style="margin-bottom: 15px; color: #cccccc;">Giấy phép của bạn đã có hiệu lực. Triển khai bằng lệnh:</p>
                 <div class="command-highlight">!add_me</div>
-                <p style="margin-top: 15px; color: #cccccc; font-size: 0.9em;">Execute this command in any Discord channel where our surveillance bot is present.</p>
+                <p style="margin-top: 15px; color: #cccccc; font-size: 0.9em;">Thực thi lệnh này ở bất kỳ kênh nào có sự hiện diện của bot giám sát.</p>
             </div>
             
             <div class="security-assurance">
-                <h3 class="classified-header" style="color: var(--mysterious-green);">🛡️ SECURITY PROTOCOLS ACTIVE</h3>
+                <h3 class="classified-header" style="color: var(--mysterious-green);">🛡️ GIAO THỨC BẢO MẬT KÍCH HOẠT</h3>
                 <ul class="security-list">
-                    <li>Credentials encrypted with quantum-level protection</li>
-                    <li>Zero Discord password retention in our systems</li>
-                    <li>Minimal access footprint for stealth operations</li>
-                    <li>Multi-redundant secure cloud archival system</li>
+                    <li>Thông tin được mã hóa với cấp độ lượng tử</li>
+                    <li>Không lưu giữ mật khẩu Discord trong hệ thống</li>
+                    <li>Dấu chân truy cập tối thiểu cho hoạt động bí mật</li>
+                    <li>Hệ thống lưu trữ đám mây an toàn, đa dự phòng</li>
                 </ul>
             </div>
             
@@ -1843,6 +1843,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
