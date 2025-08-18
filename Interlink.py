@@ -497,14 +497,14 @@ class ServerSelectView(discord.ui.View):
         embed.add_field(name="❌ Thất bại", value=f"{fail_count} server", inline=True)
         await interaction.followup.send(embed=embed)
 
-# Dán class này vào dưới class ServerSelectView
+# Roster
 class RosterPages(discord.ui.View):
     def __init__(self, agents, ctx):
         super().__init__(timeout=180)  # Menu sẽ tự động tắt sau 180 giây
         self.agents = agents
         self.ctx = ctx
         self.current_page = 0
-        self.items_per_page = 6  # Hiển thị 5 điệp viên mỗi trang
+        self.items_per_page = 6  # Hiển thị 6 điệp viên mỗi trang
         self.total_pages = (len(self.agents) + self.items_per_page - 1) // self.items_per_page
         self.message = None
 
@@ -557,8 +557,14 @@ class RosterPages(discord.ui.View):
 
     async def update_buttons(self):
         """Cập nhật trạng thái (bật/tắt) của các nút."""
+        # Fast backward button (<<)
         self.children[0].disabled = self.current_page == 0
-        self.children[1].disabled = self.current_page >= self.total_pages - 1
+        # Slow backward button (<)
+        self.children[1].disabled = self.current_page == 0
+        # Slow forward button (>)
+        self.children[2].disabled = self.current_page >= self.total_pages - 1
+        # Fast forward button (>>)
+        self.children[3].disabled = self.current_page >= self.total_pages - 1
 
     async def send_initial_message(self):
         """Gửi tin nhắn đầu tiên."""
@@ -566,8 +572,17 @@ class RosterPages(discord.ui.View):
         await self.update_buttons()
         self.message = await self.ctx.send(embed=embed, file=file, view=self)
 
-    @discord.ui.button(label="Trang Trước", style=discord.ButtonStyle.secondary, emoji="⬅️")
-    async def previous_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="⏪")
+    async def fast_backward(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Lùi nhanh 5 trang hoặc về trang đầu."""
+        self.current_page = max(0, self.current_page - 5)
+        embed, file = await self.create_page_embed(self.current_page)
+        await self.update_buttons()
+        await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
+
+    @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="◀️")
+    async def slow_backward(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Lùi chậm 1 trang."""
         if self.current_page > 0:
             self.current_page -= 1
             embed, file = await self.create_page_embed(self.current_page)
@@ -576,8 +591,9 @@ class RosterPages(discord.ui.View):
         else:
             await interaction.response.defer()
 
-    @discord.ui.button(label="Trang Sau", style=discord.ButtonStyle.secondary, emoji="➡️")
-    async def next_page(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="▶️")
+    async def slow_forward(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Tiến chậm 1 trang."""
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
             embed, file = await self.create_page_embed(self.current_page)
@@ -585,6 +601,14 @@ class RosterPages(discord.ui.View):
             await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
         else:
             await interaction.response.defer()
+
+    @discord.ui.button(style=discord.ButtonStyle.secondary, emoji="⏩")
+    async def fast_forward(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Tiến nhanh 5 trang hoặc đến trang cuối."""
+        self.current_page = min(self.total_pages - 1, self.current_page + 5)
+        embed, file = await self.create_page_embed(self.current_page)
+        await self.update_buttons()
+        await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
 
 class DeployView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild], agents: list[dict]):
@@ -2471,6 +2495,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
