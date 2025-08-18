@@ -703,32 +703,47 @@ class DeployView(discord.ui.View):
         await interaction.followup.send(embed=embed)
 
 # --- Modal 1: Nhập số lượng kênh ---
-class QuantityModal(discord.ui.Modal, title="Nhập Số Lượng Kênh"):
-    def __init__(self, selected_guilds: list[discord.Guild]):
-        super().__init__()
+# --- View để chọn số lượng kênh ---
+class QuantityView(discord.ui.View):
+    def __init__(self, selected_guilds: list[discord.Guild], author: discord.User):
+        super().__init__(timeout=300)
         self.selected_guilds = selected_guilds
+        self.author = author
 
-    quantity = discord.ui.TextInput(
-        label="Bạn muốn tạo bao nhiêu kênh? (Tối đa 5)",
-        placeholder="Nhập một số từ 1 đến 5",
-        required=True
-    )
+    @discord.ui.button(label="1 Kênh", style=discord.ButtonStyle.secondary)
+    async def one_channel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, 1))
 
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            num_channels = int(self.quantity.value)
-            if not 1 <= num_channels <= 5:
-                return await interaction.response.send_message("Lỗi: Số lượng phải là một số từ 1 đến 5.", ephemeral=True)
-        except ValueError:
-            return await interaction.response.send_message("Lỗi: Vui lòng nhập một con số hợp lệ.", ephemeral=True)
-        
-        # Mở Modal thứ hai để nhập tên
-        await interaction.response.send_modal(NamesModal(self.selected_guilds, num_channels))
+    @discord.ui.button(label="2 Kênh", style=discord.ButtonStyle.secondary)
+    async def two_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, 2))
 
-# --- Modal 2: Nhập tên riêng cho từng kênh ---
+    @discord.ui.button(label="3 Kênh", style=discord.ButtonStyle.secondary)
+    async def three_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, 3))
+
+    @discord.ui.button(label="4 Kênh", style=discord.ButtonStyle.secondary)
+    async def four_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, 4))
+
+    @discord.ui.button(label="5 Kênh", style=discord.ButtonStyle.secondary)
+    async def five_channels(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, 5))
+
+# --- Modal để nhập tên riêng cho từng kênh ---
 class NamesModal(discord.ui.Modal):
     def __init__(self, selected_guilds: list[discord.Guild], quantity: int):
-        super().__init__(title="Nhập Tên Cho Từng Kênh")
+        super().__init__(title=f"Nhập Tên Cho {quantity} Kênh")
         self.selected_guilds = selected_guilds
         self.quantity = quantity
         
@@ -835,16 +850,23 @@ class CreateChannelView(discord.ui.View):
         select.callback = guild_callback
         return select
 
-    @discord.ui.button(label="Bước 2: Bắt Đầu Tạo Kênh", style=discord.ButtonStyle.success)
-    async def open_modal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Bước 2: Chọn Số Lượng Kênh", style=discord.ButtonStyle.success)
+    async def open_quantity_view(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: 
             return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
             
         if not self.selected_guilds:
             return await interaction.response.send_message("❌ Lỗi: Vui lòng chọn ít nhất một Server từ menu trước!", ephemeral=True)
         
-        # Mở Modal đầu tiên để hỏi số lượng
-        await interaction.response.send_modal(QuantityModal(self.selected_guilds))
+        # Tạo embed để hiển thị view chọn số lượng
+        embed = discord.Embed(
+            title="🔢 Chọn Số Lượng Kênh",
+            description=f"Bạn đã chọn **{len(self.selected_guilds)}** server.\nHãy chọn số lượng kênh muốn tạo:",
+            color=0x00ff00
+        )
+        
+        view = QuantityView(self.selected_guilds, self.author)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         
 # --- DISCORD BOT EVENTS ---
 @bot.event
@@ -2354,6 +2376,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
