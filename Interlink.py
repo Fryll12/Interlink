@@ -726,23 +726,67 @@ class QuantityModal(discord.ui.Modal, title="Nhập Số Lượng Kênh"):
         await interaction.response.send_modal(NamesModal(self.selected_guilds, num_channels))
 
 # --- Modal 2: Nhập tên riêng cho từng kênh ---
-class NamesModal(discord.ui.Modal, title="Nhập Tên Cho Từng Kênh"):
+class NamesModal(discord.ui.Modal):
     def __init__(self, selected_guilds: list[discord.Guild], quantity: int):
-        super().__init__()
+        super().__init__(title="Nhập Tên Cho Từng Kênh")
         self.selected_guilds = selected_guilds
         self.quantity = quantity
         
-        # Tự động tạo ra các ô nhập liệu dựa trên số lượng
-        for i in range(1, quantity + 1):
-            self.add_item(discord.ui.TextInput(
-                label=f"Tên Kênh #{i}",
-                placeholder=f"Nhập tên cho kênh thứ {i}...",
+        # Tạo các TextInput fields dựa trên số lượng
+        if quantity >= 1:
+            self.name1 = discord.ui.TextInput(
+                label="Tên Kênh #1",
+                placeholder="Nhập tên cho kênh thứ 1...",
                 required=True
-            ))
+            )
+            self.add_item(self.name1)
+        
+        if quantity >= 2:
+            self.name2 = discord.ui.TextInput(
+                label="Tên Kênh #2", 
+                placeholder="Nhập tên cho kênh thứ 2...",
+                required=True
+            )
+            self.add_item(self.name2)
+            
+        if quantity >= 3:
+            self.name3 = discord.ui.TextInput(
+                label="Tên Kênh #3",
+                placeholder="Nhập tên cho kênh thứ 3...", 
+                required=True
+            )
+            self.add_item(self.name3)
+            
+        if quantity >= 4:
+            self.name4 = discord.ui.TextInput(
+                label="Tên Kênh #4",
+                placeholder="Nhập tên cho kênh thứ 4...",
+                required=True
+            )
+            self.add_item(self.name4)
+            
+        if quantity >= 5:
+            self.name5 = discord.ui.TextInput(
+                label="Tên Kênh #5",
+                placeholder="Nhập tên cho kênh thứ 5...",
+                required=True
+            )
+            self.add_item(self.name5)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Lấy tên từ các ô nhập liệu
-        channel_names = [item.value for item in self.children]
+        # Lấy tên từ các ô nhập liệu dựa trên số lượng
+        channel_names = []
+        
+        if hasattr(self, 'name1'):
+            channel_names.append(self.name1.value)
+        if hasattr(self, 'name2'):
+            channel_names.append(self.name2.value)
+        if hasattr(self, 'name3'):
+            channel_names.append(self.name3.value)
+        if hasattr(self, 'name4'):
+            channel_names.append(self.name4.value)
+        if hasattr(self, 'name5'):
+            channel_names.append(self.name5.value)
         
         await interaction.response.send_message(f"✅ **Đã nhận lệnh!** Chuẩn bị tạo **{len(channel_names)}** kênh trong **{len(self.selected_guilds)}** server...", ephemeral=True)
 
@@ -782,18 +826,22 @@ class CreateChannelView(discord.ui.View):
             max_values=len(options)
         )
         async def guild_callback(interaction: discord.Interaction):
-            if interaction.user.id != self.author.id: return
+            if interaction.user.id != self.author.id: 
+                return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+            
             self.selected_guilds = [discord.utils.get(self.guilds, id=int(gid)) for gid in interaction.data["values"]]
-            await interaction.response.defer()
+            await interaction.response.send_message(f"✅ Đã chọn **{len(self.selected_guilds)}** server!", ephemeral=True)
         
         select.callback = guild_callback
         return select
 
     @discord.ui.button(label="Bước 2: Bắt Đầu Tạo Kênh", style=discord.ButtonStyle.success)
     async def open_modal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.author.id: return
+        if interaction.user.id != self.author.id: 
+            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
+            
         if not self.selected_guilds:
-            return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Server từ menu.", ephemeral=True)
+            return await interaction.response.send_message("❌ Lỗi: Vui lòng chọn ít nhất một Server từ menu trước!", ephemeral=True)
         
         # Mở Modal đầu tiên để hỏi số lượng
         await interaction.response.send_modal(QuantityModal(self.selected_guilds))
@@ -2306,6 +2354,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
