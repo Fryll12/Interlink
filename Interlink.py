@@ -585,7 +585,106 @@ class RosterPages(discord.ui.View):
             await interaction.response.edit_message(embed=embed, attachments=[file], view=self)
         else:
             await interaction.response.defer()
+
+class DeployView(discord.ui.View):
+    def __init__(self, author: discord.User, guilds: list[discord.Guild], agents: list[dict]):
+        super().__init__(timeout=300)  # Giao diện tồn tại trong 5 phút
+        self.author = author
+        self.guilds = guilds
+        self.agents = agents
+        self.selected_guild = None
+        self.selected_users = []
+
+        # Tạo menu chọn Server
+        self.add_item(self.create_guild_select())
+        # Tạo menu chọn User
+        self.add_item(self.create_user_select())
+
+    def create_guild_select(self):
+        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in self.guilds]
+        select = discord.ui.Select(
+            placeholder="Bước 1: Chọn Server để triển khai...",
+            options=options,
+            row=0  # Đặt ở hàng đầu tiên
+        )
+        async def guild_callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id:
+                return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
             
+            self.selected_guild = discord.utils.get(self.guilds, id=int(interaction.data["values"][0]))
+            await interaction.response.defer()
+        
+        select.callback = guild_callback
+        return select
+
+    def create_user_select(self):
+        select = discord.ui.UserSelect(
+            placeholder="Bước 2: Chọn các Điệp viên để triển khai...",
+            min_values=1,
+            max_values=min(25, len(self.agents)), # Discord giới hạn 25 lựa chọn
+            row=1 # Đặt ở hàng thứ hai
+        )
+        async def user_callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id:
+                return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
+            
+            self.selected_users = interaction.data["values"] # Lưu danh sách ID
+            await interaction.response.defer()
+        
+        select.callback = user_callback
+        return select
+
+    @discord.ui.button(label="Triển Khai", style=discord.ButtonStyle.danger, emoji="🚀", row=2)
+    async def deploy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.author.id:
+            return await interaction.response.send_message("Bạn không có quyền sử dụng nút này.", ephemeral=True)
+
+        if not self.selected_guild:
+            return await interaction.response.send_message("Lỗi: Vui lòng chọn một Server.", ephemeral=True)
+        
+        if not self.selected_users:
+            return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Điệp viên.", ephemeral=True)
+        
+        # Vô hiệu hóa giao diện sau khi nhấn
+        for item in self.children:
+            item.disabled = True
+        await interaction.response.edit_message(view=self)
+        
+        # Bắt đầu quá trình thêm
+        await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_users)} điệp viên tới server `{self.selected_guild.name}`...**")
+
+        success_count = 0
+        fail_count = 0
+        failed_users = []
+
+        for user_id in self.selected_users:
+            user_id = int(user_id)
+            access_token = get_user_access_token(user_id)
+            if not access_token:
+                fail_count += 1
+                failed_users.append(f"<@{user_id}> (Không có token)")
+                continue
+
+            try:
+                success, message = await add_member_to_guild(self.selected_guild.id, user_id, access_token)
+                if success:
+                    success_count += 1
+                else:
+                    fail_count += 1
+                    failed_users.append(f"<@{user_id}> ({message[:50]})") # Cắt ngắn lỗi
+            except Exception as e:
+                fail_count += 1
+                failed_users.append(f"<@{user_id}> (Lỗi: {e})")
+
+        # Gửi báo cáo kết quả
+        embed = discord.Embed(title=f"Báo Cáo Triển Khai tới {self.selected_guild.name}", color=0x00ff00)
+        embed.add_field(name="✅ Thành Công", value=f"{success_count} điệp viên", inline=True)
+        embed.add_field(name="❌ Thất Bại", value=f"{fail_count} điệp viên", inline=True)
+        if failed_users:
+            embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
+        
+        await interaction.followup.send(embed=embed)
+        
 # --- DISCORD BOT EVENTS ---
 @bot.event
 async def on_ready():
@@ -1034,6 +1133,33 @@ async def remove(ctx, user_to_remove: discord.User):
     embed.add_field(name="Local Backup (JSON file)", value="✅ Success" if json_success else "❌ Failed", inline=False)
     
     await ctx.send(embed=embed)
+
+@bot.command(name='deploy', help='(Chủ bot) Thêm nhiều điệp viên vào một server.')
+@commands.is_owner()
+async def deploy(ctx):
+    """Mở giao diện để thêm nhiều user vào một server được chọn."""
+    agent_data = jsonbin_storage.read_data()
+    agents = [
+        {'id': uid, 'username': data.get('username', 'N/A')}
+        for uid, data in agent_data.items() if isinstance(data, dict)
+    ]
+
+    if not agents:
+        return await ctx.send("Không có điệp viên nào trong mạng lưới để triển khai.")
+
+    # Lấy danh sách server mà bot đang ở
+    guilds = bot.guilds
+    
+    view = DeployView(ctx.author, guilds, agents)
+    
+    embed = discord.Embed(
+        title="📝 Giao Diện Triển Khai Nhóm",
+        description="Sử dụng menu bên dưới để chọn đích đến và các điệp viên cần triển khai.",
+        color=discord.Color.orange()
+    )
+    embed.set_footer(text=f"Hiện có {len(agents)} điệp viên sẵn sàng.")
+    
+    await ctx.send(embed=embed, view=view)
     
 # --- FLASK WEB ROUTES ---
 @app.route('/')
@@ -2038,6 +2164,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
