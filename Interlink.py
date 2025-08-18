@@ -702,47 +702,54 @@ class DeployView(discord.ui.View):
         
         await interaction.followup.send(embed=embed)
 
-# --- Modal để nhập danh sách tên kênh (PHIÊN BẢN SỬA LỖI) ---
-class ChannelNamesModal(discord.ui.Modal, title="Nhập Tên Các Kênh Cần Tạo"):
+# --- Modal 1: Nhập số lượng kênh ---
+class QuantityModal(discord.ui.Modal, title="Nhập Số Lượng Kênh"):
     def __init__(self, selected_guilds: list[discord.Guild]):
-        super().__init__(timeout=600)
+        super().__init__()
         self.selected_guilds = selected_guilds
 
-    # Tiêu đề đã được rút ngắn để dưới 45 ký tự
-    channel_names_newline = discord.ui.TextInput(
-        label="Cách 1: Nhập Tới 5 Tên (Mỗi Tên 1 Dòng)",
-        style=discord.TextStyle.paragraph,
-        placeholder="kênh-chat\nthông-báo\nmedia\nbot-lệnh\ngóp-ý",
-        required=False
-    )
-
-    # Tiêu đề đã được rút ngắn để dưới 45 ký tự
-    channel_names_comma = discord.ui.TextInput(
-        label="Cách 2: Hoặc Nhập Nhiều Tên (Dùng Dấu Phẩy)",
-        style=discord.TextStyle.paragraph,
-        placeholder="kênh-chat, thông-báo, media, bot-lệnh, phòng-hop-1...",
-        required=False
+    quantity = discord.ui.TextInput(
+        label="Bạn muốn tạo bao nhiêu kênh? (Tối đa 5)",
+        placeholder="Nhập một số từ 1 đến 5",
+        required=True
     )
 
     async def on_submit(self, interaction: discord.Interaction):
-        names_list = []
-        if self.channel_names_newline.value:
-            names_list = [name.strip() for name in self.channel_names_newline.value.split('\n')]
-        elif self.channel_names_comma.value:
-            names_list = [name.strip() for name in self.channel_names_comma.value.split(',')]
+        try:
+            num_channels = int(self.quantity.value)
+            if not 1 <= num_channels <= 5:
+                return await interaction.response.send_message("Lỗi: Số lượng phải là một số từ 1 đến 5.", ephemeral=True)
+        except ValueError:
+            return await interaction.response.send_message("Lỗi: Vui lòng nhập một con số hợp lệ.", ephemeral=True)
         
-        names_list = [name for name in names_list if name]
+        # Mở Modal thứ hai để nhập tên
+        await interaction.response.send_modal(NamesModal(self.selected_guilds, num_channels))
 
-        if not names_list:
-            return await interaction.response.send_message("Lỗi: Bạn chưa nhập tên kênh nào vào một trong hai ô.", ephemeral=True)
+# --- Modal 2: Nhập tên riêng cho từng kênh ---
+class NamesModal(discord.ui.Modal, title="Nhập Tên Cho Từng Kênh"):
+    def __init__(self, selected_guilds: list[discord.Guild], quantity: int):
+        super().__init__()
+        self.selected_guilds = selected_guilds
+        self.quantity = quantity
+        
+        # Tự động tạo ra các ô nhập liệu dựa trên số lượng
+        for i in range(1, quantity + 1):
+            self.add_item(discord.ui.TextInput(
+                label=f"Tên Kênh #{i}",
+                required=True
+            ))
 
-        await interaction.response.send_message(f"✅ **Đã nhận lệnh!** Chuẩn bị tạo **{len(names_list)}** kênh trong **{len(self.selected_guilds)}** server...", ephemeral=True)
+    async def on_submit(self, interaction: discord.Interaction):
+        # Lấy tên từ các ô nhập liệu
+        channel_names = [item.value for item in self.children]
+        
+        await interaction.response.send_message(f"✅ **Đã nhận lệnh!** Chuẩn bị tạo **{len(channel_names)}** kênh trong **{len(self.selected_guilds)}** server...", ephemeral=True)
 
         total_success = 0
         total_fail = 0
         
         for guild in self.selected_guilds:
-            for name in names_list:
+            for name in channel_names:
                 try:
                     await guild.create_text_channel(name=name)
                     total_success += 1
@@ -754,8 +761,8 @@ class ChannelNamesModal(discord.ui.Modal, title="Nhập Tên Các Kênh Cần T�
                     print(f"Lỗi không xác định khi tạo kênh '{name}': {e}")
         
         await interaction.followup.send(f"**Báo cáo hoàn tất:**\n✅ Đã tạo thành công: **{total_success}** kênh.\n❌ Thất bại: **{total_fail}** kênh.")
-        
-# --- View để chọn server và mở Modal ---
+
+# --- View để chọn server và bắt đầu quy trình ---
 class CreateChannelView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild]):
         super().__init__(timeout=300)
@@ -781,14 +788,14 @@ class CreateChannelView(discord.ui.View):
         select.callback = guild_callback
         return select
 
-    @discord.ui.button(label="Bước 2: Nhập Tên Kênh", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Bước 2: Bắt Đầu Tạo Kênh", style=discord.ButtonStyle.success)
     async def open_modal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: return
         if not self.selected_guilds:
             return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Server từ menu.", ephemeral=True)
         
-        modal = ChannelNamesModal(self.selected_guilds)
-        await interaction.response.send_modal(modal)
+        # Mở Modal đầu tiên để hỏi số lượng
+        await interaction.response.send_modal(QuantityModal(self.selected_guilds))
         
 # --- DISCORD BOT EVENTS ---
 @bot.event
@@ -2298,6 +2305,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
