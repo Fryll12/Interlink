@@ -702,23 +702,23 @@ class DeployView(discord.ui.View):
         
         await interaction.followup.send(embed=embed)
 
-# --- Modal để nhập danh sách tên kênh ---
+# --- Modal để nhập danh sách tên kênh (PHIÊN BẢN SỬA LỖI) ---
 class ChannelNamesModal(discord.ui.Modal, title="Nhập Tên Các Kênh Cần Tạo"):
     def __init__(self, selected_guilds: list[discord.Guild]):
         super().__init__(timeout=600)
         self.selected_guilds = selected_guilds
 
-    # Khu vực nhập liệu chuyên nghiệp, mỗi tên một dòng
+    # Tiêu đề đã được rút ngắn để dưới 45 ký tự
     channel_names_newline = discord.ui.TextInput(
-        label="Cách 1: Nhập Tối Đa 5 Tên (Mỗi Tên 1 Dòng)",
+        label="Cách 1: Nhập Tới 5 Tên (Mỗi Tên 1 Dòng)",
         style=discord.TextStyle.paragraph,
         placeholder="kênh-chat\nthông-báo\nmedia\nbot-lệnh\ngóp-ý",
         required=False
     )
 
-    # Khu vực nhập liệu nhanh, dùng dấu phẩy
+    # Tiêu đề đã được rút ngắn để dưới 45 ký tự
     channel_names_comma = discord.ui.TextInput(
-        label="Cách 2: HOẶC Nhập Danh Sách Dài (Dùng Dấu Phẩy)",
+        label="Cách 2: Hoặc Nhập Nhiều Tên (Dùng Dấu Phẩy)",
         style=discord.TextStyle.paragraph,
         placeholder="kênh-chat, thông-báo, media, bot-lệnh, phòng-hop-1...",
         required=False
@@ -734,7 +734,7 @@ class ChannelNamesModal(discord.ui.Modal, title="Nhập Tên Các Kênh Cần T�
         names_list = [name for name in names_list if name]
 
         if not names_list:
-            return await interaction.response.send_message("Lỗi: Bạn chưa nhập tên kênh nào.", ephemeral=True)
+            return await interaction.response.send_message("Lỗi: Bạn chưa nhập tên kênh nào vào một trong hai ô.", ephemeral=True)
 
         await interaction.response.send_message(f"✅ **Đã nhận lệnh!** Chuẩn bị tạo **{len(names_list)}** kênh trong **{len(self.selected_guilds)}** server...", ephemeral=True)
 
@@ -754,7 +754,7 @@ class ChannelNamesModal(discord.ui.Modal, title="Nhập Tên Các Kênh Cần T�
                     print(f"Lỗi không xác định khi tạo kênh '{name}': {e}")
         
         await interaction.followup.send(f"**Báo cáo hoàn tất:**\n✅ Đã tạo thành công: **{total_success}** kênh.\n❌ Thất bại: **{total_fail}** kênh.")
-
+        
 # --- View để chọn server và mở Modal ---
 class CreateChannelView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild]):
@@ -2298,6 +2298,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
