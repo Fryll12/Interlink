@@ -618,17 +618,34 @@ class DeployView(discord.ui.View):
         return select
 
     def create_user_select(self):
-        select = discord.ui.UserSelect(
+        # Lấy 25 điệp viên đầu tiên vì menu có giới hạn
+        agent_options = self.agents[:25]
+        
+        options = [
+            discord.SelectOption(
+                label=str(agent.get('username', agent.get('id'))), 
+                value=str(agent.get('id'))
+            )
+            for agent in agent_options
+        ]
+
+        if not options:
+            # Xử lý trường hợp không có điệp viên nào để chọn
+            return discord.ui.Select(placeholder="Không có điệp viên nào để chọn.", disabled=True, row=1)
+
+        select = discord.ui.Select(
             placeholder="Bước 2: Chọn các Điệp viên để triển khai...",
             min_values=1,
-            max_values=min(25, len(self.agents)), # Discord giới hạn 25 lựa chọn
-            row=1 # Đặt ở hàng thứ hai
+            max_values=len(options), # Cho phép chọn nhiều
+            options=options,
+            row=1
         )
+
         async def user_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id:
                 return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
             
-            self.selected_users = interaction.data["values"] # Lưu danh sách ID
+            self.selected_users = interaction.data["values"] # Lưu danh sách ID đã chọn
             await interaction.response.defer()
         
         select.callback = user_callback
@@ -2164,6 +2181,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
