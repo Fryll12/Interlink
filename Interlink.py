@@ -929,7 +929,7 @@ async def help_slash(interaction: discord.Interaction):
     # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(interaction.user):
         embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
-        embed.add_field(name="`!roster`", value="Xem danh sách điệp viên (có chuyển trang).", inline=True)
+        embed.add_field(name="`!roster`", value="Xem danh sách điệp viên.", inline=True)
         embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
         embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
         embed.add_field(name="`!remove <User>`", value="Xóa dữ liệu của một điệp viên.", inline=True)
@@ -2198,6 +2198,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
