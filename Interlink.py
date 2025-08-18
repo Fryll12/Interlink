@@ -163,6 +163,14 @@ class JSONBinStorage:
         
         return self.write_data(data)
 
+    def delete_user(self, user_id):
+        """Xóa một user khỏi JSONBin"""
+        data = self.read_data()
+        if str(user_id) in data:
+            del data[str(user_id)]
+            return self.write_data(data)
+        return True # Trả về True nếu user không tồn tại sẵn
+
 # Khởi tạo JSONBin storage
 jsonbin_storage = JSONBinStorage()
 
@@ -325,6 +333,42 @@ def save_user_token(user_id: str, access_token: str, username: str = None, avata
     
     return success_db or success_jsonbin or success_json
 
+def delete_user_from_db(user_id: str):
+    """Xóa user khỏi database"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_tokens WHERE user_id = %s", (user_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            print(f"✅ Deleted user {user_id} from database")
+            return True
+        except Exception as e:
+            print(f"Database delete error: {e}")
+            if conn:
+                conn.close()
+    return False
+
+def delete_user_from_json(user_id: str):
+    """Xóa user khỏi file JSON"""
+    try:
+        with open('tokens.json', 'r') as f:
+            tokens = json.load(f)
+
+        if user_id in tokens:
+            del tokens[user_id]
+            with open('tokens.json', 'w') as f:
+                json.dump(tokens, f, indent=4)
+            print(f"✅ Deleted user {user_id} from JSON file")
+        return True
+    except (FileNotFoundError, json.JSONDecodeError):
+        return True # File không tồn tại coi như đã xóa
+    except Exception as e:
+        print(f"JSON file delete error: {e}")
+        return False
+        
 # --- DISCORD BOT SETUP ---
 intents = discord.Intents.default()
 intents.members = True
@@ -963,7 +1007,34 @@ async def roster(ctx):
     except Exception as e:
         await ctx.send(f"An unexpected error occurred: {e}")
         print(f"Roster command error: {e}")
-        
+
+@bot.command(name='remove', help='(Owner only) Removes an agent from all storage systems.')
+@commands.is_owner()
+async def remove(ctx, user_to_remove: discord.User):
+    """Removes a user's data from the database, JSONBin, and local JSON."""
+    if not user_to_remove:
+        await ctx.send("❌ User not found.")
+        return
+
+    user_id_str = str(user_to_remove.id)
+    await ctx.send(f"🔥 Initiating data purge for agent **{user_to_remove.name}** (`{user_id_str}`)...")
+
+    # Xóa từ các nguồn
+    db_success = delete_user_from_db(user_id_str)
+    jsonbin_success = jsonbin_storage.delete_user(user_id_str)
+    json_success = delete_user_from_json(user_id_str)
+
+    # Tạo báo cáo kết quả
+    embed = discord.Embed(
+        title=f"Data Purge Report for {user_to_remove.name}",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="Database (PostgreSQL)", value="✅ Success" if db_success else "❌ Failed", inline=False)
+    embed.add_field(name="Cloud Archive (JSONBin.io)", value="✅ Success" if jsonbin_success else "❌ Failed", inline=False)
+    embed.add_field(name="Local Backup (JSON file)", value="✅ Success" if json_success else "❌ Failed", inline=False)
+    
+    await ctx.send(embed=embed)
+    
 # --- FLASK WEB ROUTES ---
 @app.route('/')
 def index():
@@ -1967,6 +2038,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
