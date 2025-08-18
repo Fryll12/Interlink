@@ -917,39 +917,28 @@ async def help_slash(interaction: discord.Interaction):
         color=0x0099ff
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
-
+    
     # Lệnh cho mọi người
-    embed.add_field(
-        name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)",
-        value=(
-            "`!auth` - Lấy link ủy quyền để gia nhập mạng lưới.\n"
-            "`!add_me` - Tự triển khai bản thân đến tất cả server.\n"
-            "`!check_token` - Kiểm tra trạng thái ủy quyền của bạn.\n"
-            "`!status` - Xem trạng thái hoạt động của bot và hệ thống.\n"
-            "`!ping` - Kiểm tra độ trễ của bot."
-        ),
-        inline=False
-    )
-
-    # Lệnh chỉ dành cho chủ bot (Với slash command, chúng ta có thể kiểm tra và hiển thị luôn)
+    embed.add_field(name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)", value="----------------------------------", inline=False)
+    embed.add_field(name="`!auth`", value="Lấy link ủy quyền để gia nhập mạng lưới.", inline=True)
+    embed.add_field(name="`!add_me`", value="Tự triển khai bản thân đến tất cả server.", inline=True)
+    embed.add_field(name="`!check_token`", value="Kiểm tra trạng thái ủy quyền của bạn.", inline=True)
+    embed.add_field(name="`!status`", value="Xem trạng thái hoạt động của bot và hệ thống.", inline=True)
+    embed.add_field(name="`!ping`", value="Kiểm tra độ trễ của bot.", inline=True)
+    
+    # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(interaction.user):
-        embed.add_field(
-            name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)",
-            value=(
-                "`!roster` - Xem danh sách tất cả điệp viên đã ủy quyền (có chuyển trang).\n"
-                "`!deploy` - Mở menu để thêm **nhiều** điệp viên vào **một** server.\n"
-                "`!invite <User>` - Mở menu để thêm **một** điệp viên vào **nhiều** server.\n"
-                "`!remove <User>` - Xóa toàn bộ dữ liệu của một điệp viên khỏi hệ thống.\n"
-                "`!force_add <User>` - Ép thêm một điệp viên vào **TẤT CẢ** server.\n"
-                "`!storage_info` - Xem thông tin chi tiết về các hệ thống lưu trữ."
-            ),
-            inline=False
-        )
+        embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
+        embed.add_field(name="`!roster`", value="Xem danh sách điệp viên (có chuyển trang).", inline=True)
+        embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
+        embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
+        embed.add_field(name="`!remove <User>`", value="Xóa dữ liệu của một điệp viên.", inline=True)
+        embed.add_field(name="`!force_add <User>`", value="Ép thêm điệp viên vào TẤT CẢ server.", inline=True)
+        embed.add_field(name="`!storage_info`", value="Xem thông tin các hệ thống lưu trữ.", inline=True)
 
     embed.set_footer(text="Hãy chọn một mật lệnh để bắt đầu chiến dịch.")
-    # ephemeral=True để chỉ người dùng lệnh mới thấy tin nhắn này
     await interaction.response.send_message(embed=embed, ephemeral=True)
-
+    
 @bot.command(name='help', help='Hiển thị bảng trợ giúp về các lệnh.')
 async def help(ctx):
     embed = discord.Embed(
@@ -958,34 +947,24 @@ async def help(ctx):
         color=0x0099ff
     )
     embed.set_thumbnail(url=bot.user.display_avatar.url)
-
+    
     # Lệnh cho mọi người
-    embed.add_field(
-        name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)",
-        value=(
-            "`!auth` - Lấy link ủy quyền để gia nhập mạng lưới.\n"
-            "`!add_me` - Tự triển khai bản thân đến tất cả server.\n"
-            "`!check_token` - Kiểm tra trạng thái ủy quyền của bạn.\n"
-            "`!status` - Xem trạng thái hoạt động của bot và hệ thống.\n"
-            "`!ping` - Kiểm tra độ trễ của bot."
-        ),
-        inline=False
-    )
+    embed.add_field(name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)", value="----------------------------------", inline=False)
+    embed.add_field(name="`!auth`", value="Lấy link ủy quyền để gia nhập mạng lưới.", inline=True)
+    embed.add_field(name="`!add_me`", value="Tự triển khai bản thân đến tất cả server.", inline=True)
+    embed.add_field(name="`!check_token`", value="Kiểm tra trạng thái ủy quyền của bạn.", inline=True)
+    embed.add_field(name="`!status`", value="Xem trạng thái hoạt động của bot và hệ thống.", inline=True)
+    embed.add_field(name="`!ping`", value="Kiểm tra độ trễ của bot.", inline=True)
 
     # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(ctx.author):
-        embed.add_field(
-            name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)",
-            value=(
-                "`!roster` - Xem danh sách tất cả điệp viên trong mạng lưới (có chuyển trang).\n"
-                "`!deploy` - Mở menu để thêm **nhiều** điệp viên vào **một** server.\n"
-                "`!invite <User>` - Mở menu để thêm **một** điệp viên vào **nhiều** server.\n"
-                "`!remove <User>` - Xóa toàn bộ dữ liệu của một điệp viên khỏi hệ thống.\n"
-                "`!force_add <User>` - Ép thêm một điệp viên vào **TẤT CẢ** server.\n"
-                "`!storage_info` - Xem thông tin chi tiết về các hệ thống lưu trữ."
-            ),
-            inline=False
-        )
+        embed.add_field(name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)", value="----------------------------------", inline=False)
+        embed.add_field(name="`!roster`", value="Xem danh sách điệp viên (có chuyển trang).", inline=True)
+        embed.add_field(name="`!deploy`", value="Thêm NHIỀU điệp viên vào MỘT server.", inline=True)
+        embed.add_field(name="`!invite <User>`", value="Thêm MỘT điệp viên vào NHIỀU server.", inline=True)
+        embed.add_field(name="`!remove <User>`", value="Xóa dữ liệu của một điệp viên.", inline=True)
+        embed.add_field(name="`!force_add <User>`", value="Ép thêm điệp viên vào TẤT CẢ server.", inline=True)
+        embed.add_field(name="`!storage_info`", value="Xem thông tin các hệ thống lưu trữ.", inline=True)
 
     embed.set_footer(text="Hãy chọn một mật lệnh để bắt đầu chiến dịch.")
     await ctx.send(embed=embed)
@@ -2219,6 +2198,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
