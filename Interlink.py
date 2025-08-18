@@ -912,44 +912,82 @@ async def invite(ctx, user_to_add: discord.User):
 @bot.tree.command(name="help", description="Hiển thị thông tin về các lệnh của bot")
 async def help_slash(interaction: discord.Interaction):
     embed = discord.Embed(
-        title="🤖 Trợ giúp về lệnh của Interlink Bot",
-        description="Dưới đây là danh sách các lệnh bạn có thể sử dụng:",
-        color=discord.Color.blue()
+        title="📝 Bảng Lệnh Của Bot Mật Vụ",
+        description="Dưới đây là danh sách các mật lệnh có sẵn.",
+        color=0x0099ff
     )
-    
-    embed.add_field(name="`!auth`", value="Gửi cho bạn link để ủy quyền cho bot.", inline=False)
-    embed.add_field(name="`!add_me`", value="Tự thêm chính bạn vào tất cả các server sau khi đã ủy quyền.", inline=False)
-    embed.add_field(name="`!check_token`", value="Kiểm tra xem bạn đã ủy quyền cho bot hay chưa.", inline=False)
-    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và các dịch vụ.", inline=False)
-    embed.add_field(name="`!invite <User ID/@User>`", value="**(Chủ bot)** Mở giao diện để chọn server mời một người dùng.", inline=False)
-    embed.add_field(name="`!force_add <User ID/@User>`", value="**(Chủ bot)** Thêm một người dùng vào TẤT CẢ các server.", inline=False)
-    
-    embed.set_footer(text="Bot được phát triển với sự hỗ trợ của AI. Token được lưu trên cloud storage.")
-    
-    await interaction.response.send_message(embed=embed, ephemeral=True) # ephemeral=True chỉ gửi cho người dùng lệnh
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+
+    # Lệnh cho mọi người
+    embed.add_field(
+        name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)",
+        value=(
+            "`!auth` - Lấy link ủy quyền để gia nhập mạng lưới.\n"
+            "`!add_me` - Tự triển khai bản thân đến tất cả server.\n"
+            "`!check_token` - Kiểm tra trạng thái ủy quyền của bạn.\n"
+            "`!status` - Xem trạng thái hoạt động của bot và hệ thống.\n"
+            "`!ping` - Kiểm tra độ trễ của bot."
+        ),
+        inline=False
+    )
+
+    # Lệnh chỉ dành cho chủ bot (Với slash command, chúng ta có thể kiểm tra và hiển thị luôn)
+    if await bot.is_owner(interaction.user):
+        embed.add_field(
+            name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)",
+            value=(
+                "`!roster` - Xem danh sách tất cả điệp viên đã ủy quyền (có chuyển trang).\n"
+                "`!deploy` - Mở menu để thêm **nhiều** điệp viên vào **một** server.\n"
+                "`!invite <User>` - Mở menu để thêm **một** điệp viên vào **nhiều** server.\n"
+                "`!remove <User>` - Xóa toàn bộ dữ liệu của một điệp viên khỏi hệ thống.\n"
+                "`!force_add <User>` - Ép thêm một điệp viên vào **TẤT CẢ** server.\n"
+                "`!storage_info` - Xem thông tin chi tiết về các hệ thống lưu trữ."
+            ),
+            inline=False
+        )
+
+    embed.set_footer(text="Hãy chọn một mật lệnh để bắt đầu chiến dịch.")
+    # ephemeral=True để chỉ người dùng lệnh mới thấy tin nhắn này
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.command(name='help', help='Hiển thị bảng trợ giúp về các lệnh.')
 async def help(ctx):
     embed = discord.Embed(
-        title="🤖 Bảng Lệnh Của Interlink Bot",
-        description="Dưới đây là danh sách các lệnh bạn có thể sử dụng:",
-        color=0x0099ff # Bạn có thể đổi màu ở đây
+        title="📝 Bảng Lệnh Của Bot Mật Vụ",
+        description="Dưới đây là danh sách các mật lệnh có sẵn.",
+        color=0x0099ff
+    )
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+
+    # Lệnh cho mọi người
+    embed.add_field(
+        name="🕵️ Lệnh Cơ Bản (Dành cho mọi Điệp viên)",
+        value=(
+            "`!auth` - Lấy link ủy quyền để gia nhập mạng lưới.\n"
+            "`!add_me` - Tự triển khai bản thân đến tất cả server.\n"
+            "`!check_token` - Kiểm tra trạng thái ủy quyền của bạn.\n"
+            "`!status` - Xem trạng thái hoạt động của bot và hệ thống.\n"
+            "`!ping` - Kiểm tra độ trễ của bot."
+        ),
+        inline=False
     )
 
-    embed.add_field(name="`!auth`", value="Gửi link để bạn ủy quyền, cho phép bot thêm bạn vào server.", inline=False)
-    embed.add_field(name="`!add_me`", value="Tự thêm chính bạn vào tất cả các server sau khi đã ủy quyền.", inline=False)
-    embed.add_field(name="`!check_token`", value="Kiểm tra xem bạn đã ủy quyền cho bot hay chưa.", inline=False)
-    embed.add_field(name="`!status`", value="Kiểm tra trạng thái hoạt động của bot và storage systems.", inline=False)
-
-    # Chỉ hiển thị các lệnh của chủ bot cho chủ bot
+    # Lệnh chỉ dành cho chủ bot
     if await bot.is_owner(ctx.author):
-        embed.add_field(name="👑 Lệnh Dành Cho Chủ Bot 👑", value="----------------------------------", inline=False)
-        embed.add_field(name="`!invite <User ID/@User>`", value="Mở giao diện để chọn và mời một người dùng vào các server.", inline=False)
-        embed.add_field(name="`!force_add <User ID/@User>`", value="Ép thêm một người dùng vào TẤT CẢ các server.", inline=False)
+        embed.add_field(
+            name="👑 Lệnh Chỉ Huy (Chỉ dành cho Owner)",
+            value=(
+                "`!roster` - Xem danh sách tất cả điệp viên trong mạng lưới (có chuyển trang).\n"
+                "`!deploy` - Mở menu để thêm **nhiều** điệp viên vào **một** server.\n"
+                "`!invite <User>` - Mở menu để thêm **một** điệp viên vào **nhiều** server.\n"
+                "`!remove <User>` - Xóa toàn bộ dữ liệu của một điệp viên khỏi hệ thống.\n"
+                "`!force_add <User>` - Ép thêm một điệp viên vào **TẤT CẢ** server.\n"
+                "`!storage_info` - Xem thông tin chi tiết về các hệ thống lưu trữ."
+            ),
+            inline=False
+        )
 
-    embed.set_footer(text="Chọn một lệnh và bắt đầu! Token được lưu trên cloud storage.")
-    embed.set_thumbnail(url=bot.user.display_avatar.url) # Thêm avatar của bot vào embed
-
+    embed.set_footer(text="Hãy chọn một mật lệnh để bắt đầu chiến dịch.")
     await ctx.send(embed=embed)
 
 # --- ADDITIONAL JSONBIN MANAGEMENT COMMANDS ---
@@ -2181,6 +2219,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
