@@ -736,6 +736,7 @@ class NamesModal(discord.ui.Modal, title="Nhập Tên Cho Từng Kênh"):
         for i in range(1, quantity + 1):
             self.add_item(discord.ui.TextInput(
                 label=f"Tên Kênh #{i}",
+                placeholder=f"Nhập tên cho kênh thứ {i}...",
                 required=True
             ))
 
@@ -2305,6 +2306,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
