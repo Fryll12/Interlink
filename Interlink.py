@@ -852,44 +852,67 @@ class CreateChannelView(discord.ui.View):
         super().__init__(timeout=300)
         self.author = author
         self.guilds = guilds
-        self.selected_guilds = []
+        self.selected_guild_ids = set() # Sử dụng set để lưu ID, tránh trùng lặp
 
-        self.add_item(self.create_guild_select())
+        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25 server
+        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
 
-    def create_guild_select(self):
-        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in self.guilds]
+        # Tạo một menu thả xuống (Select) cho mỗi phần
+        for index, chunk in enumerate(guild_chunks):
+            self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
+
+    def create_guild_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
+        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
+        
+        placeholder_text = f"Chọn server (Trang {page_index + 1}/{total_pages})"
+        if not options:
+            return # Không thêm menu nếu không có server
+
         select = discord.ui.Select(
-            placeholder="Bước 1: Chọn một hoặc nhiều Server...",
+            placeholder=placeholder_text,
             options=options,
             min_values=1,
-            max_values=len(options)
+            max_values=len(options),
+            # custom_id giúp phân biệt các menu nếu cần, nhưng ở đây không bắt buộc
+            custom_id=f"guild_select_page_{page_index}" 
         )
+
         async def guild_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: 
                 return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
             
-            self.selected_guilds = [discord.utils.get(self.guilds, id=int(gid)) for gid in interaction.data["values"]]
-            await interaction.response.send_message(f"✅ Đã chọn **{len(self.selected_guilds)}** server!", ephemeral=True)
+            # Cập nhật tập hợp các ID đã chọn
+            # Xóa các lựa chọn cũ từ menu này và thêm các lựa chọn mới
+            # Điều này cho phép người dùng thay đổi ý định
+            ids_in_this_menu = {int(opt.value) for opt in select.options}
+            self.selected_guild_ids.difference_update(ids_in_this_menu)
+            
+            for gid in interaction.data["values"]:
+                self.selected_guild_ids.add(int(gid))
+
+            await interaction.response.send_message(f"✅ Đã cập nhật lựa chọn! Hiện tại đã chọn **{len(self.selected_guild_ids)}** server.", ephemeral=True)
         
         select.callback = guild_callback
         return select
 
-    @discord.ui.button(label="Bước 2: Chọn Số Lượng Kênh", style=discord.ButtonStyle.success)
+    @discord.ui.button(label="Bước 2: Chọn Số Lượng Kênh", style=discord.ButtonStyle.success, row=4)
     async def open_quantity_view(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: 
             return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
             
-        if not self.selected_guilds:
+        if not self.selected_guild_ids:
             return await interaction.response.send_message("❌ Lỗi: Vui lòng chọn ít nhất một Server từ menu trước!", ephemeral=True)
         
-        # Tạo embed để hiển thị view chọn số lượng
+        # Lấy các đối tượng guild từ các ID đã chọn
+        selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
+
         embed = discord.Embed(
             title="🔢 Chọn Số Lượng Kênh",
-            description=f"Bạn đã chọn **{len(self.selected_guilds)}** server.\nHãy chọn số lượng kênh muốn tạo:",
+            description=f"Bạn đã chọn **{len(selected_guilds)}** server.\nHãy chọn số lượng kênh muốn tạo:",
             color=0x00ff00
         )
         
-        view = QuantityView(self.selected_guilds, self.author)
+        view = QuantityView(selected_guilds, self.author)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # --- View để lấy ID kênh ---
@@ -2495,6 +2518,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
