@@ -405,91 +405,70 @@ async def add_member_to_guild(guild_id: int, user_id: int, access_token: str):
 # Lớp này định nghĩa giao diện lựa chọn server
 class ServerSelectView(discord.ui.View):
     def __init__(self, author: discord.User, target_user: discord.User, guilds: list[discord.Guild]):
-        super().__init__(timeout=180)  # Giao diện sẽ hết hạn sau 180 giây
+        super().__init__(timeout=300)
         self.author = author
         self.target_user = target_user
         self.guilds = guilds
-        self.selected_guilds = []
+        self.selected_guild_ids = set()
 
-        # Tạo menu thả xuống (Select)
-        self.add_item(self.create_server_select())
-
-    def create_server_select(self):
-        # Tạo các lựa chọn cho menu, mỗi lựa chọn là một server
-        options = [
-            discord.SelectOption(
-                label=guild.name, 
-                value=str(guild.id), 
-                emoji='🖥️', 
-                description=f"{guild.member_count} thành viên"
-            )
-            for guild in self.guilds
-        ]
+        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25
+        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
         
-        server_select = discord.ui.Select(
-            placeholder="Chọn các server bạn muốn mời vào...",
+        # Tạo một menu cho mỗi phần
+        for index, chunk in enumerate(guild_chunks):
+            self.add_item(self.create_server_select(chunk, index, len(guild_chunks)))
+
+    def create_server_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
+        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
+        placeholder = f"Chọn server (Trang {page_index + 1}/{total_pages})"
+        
+        select = discord.ui.Select(
+            placeholder=placeholder,
+            options=options,
             min_values=1,
-            max_values=len(self.guilds), # Cho phép chọn nhiều server
-            options=options
+            max_values=len(options)
         )
         
-        # Gắn hàm callback để xử lý khi người dùng chọn
-        server_select.callback = self.on_server_select
-        return server_select
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id:
+                return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
+            
+            # Cập nhật tập hợp các ID đã chọn
+            ids_in_this_menu = {int(opt.value) for opt in select.options}
+            self.selected_guild_ids.difference_update(ids_in_this_menu)
+            for gid in interaction.data["values"]:
+                self.selected_guild_ids.add(int(gid))
 
-    async def on_server_select(self, interaction: discord.Interaction):
-        # Hàm này được gọi khi có lựa chọn trong menu
-        # Chỉ chủ bot mới có thể tương tác
-        if interaction.user.id != self.author.id:
-            await interaction.response.send_message("Bạn không có quyền tương tác với menu này.", ephemeral=True)
-            return
+            await interaction.response.send_message(f"✅ Đã cập nhật! Hiện đã chọn **{len(self.selected_guild_ids)}** server.", ephemeral=True)
 
-        # Lưu lại danh sách ID của các server đã chọn
-        self.selected_guilds = [int(value) for value in interaction.data['values']]
-        await interaction.response.defer() # Báo cho Discord biết bot đã nhận được tương tác
+        select.callback = callback
+        return select
 
     @discord.ui.button(label="Summon", style=discord.ButtonStyle.green, emoji="✨")
     async def summon_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Hàm này được gọi khi nút "Summon" được bấm
-        # Chỉ chủ bot mới có thể tương tác
         if interaction.user.id != self.author.id:
-            await interaction.response.send_message("Bạn không có quyền sử dụng nút này.", ephemeral=True)
-            return
+            return await interaction.response.send_message("Bạn không có quyền sử dụng nút này.", ephemeral=True)
         
-        if not self.selected_guilds:
-            await interaction.response.send_message("Bạn chưa chọn server nào cả!", ephemeral=True)
-            return
+        if not self.selected_guild_ids:
+            return await interaction.response.send_message("Bạn chưa chọn server nào cả!", ephemeral=True)
 
-        # Vô hiệu hóa giao diện sau khi bấm
         for item in self.children:
             item.disabled = True
         await interaction.response.edit_message(view=self)
         
-        await interaction.followup.send(f"✅ Đã nhận lệnh! Bắt đầu mời **{self.target_user.name}** vào **{len(self.selected_guilds)}** server đã chọn...")
+        await interaction.followup.send(f"✅ Đã nhận lệnh! Bắt đầu mời **{self.target_user.name}** vào **{len(self.selected_guild_ids)}** server đã chọn...")
 
-        # Bắt đầu quá trình mời
         access_token = get_user_access_token(self.target_user.id)
         if not access_token:
             await interaction.followup.send(f"❌ Người dùng **{self.target_user.name}** chưa ủy quyền cho bot.")
             return
 
-        success_count = 0
-        fail_count = 0
-        
-        for guild_id in self.selected_guilds:
-            guild = bot.get_guild(guild_id)
-            if not guild: continue
-            
-            try:
-                success, message = await add_member_to_guild(guild.id, self.target_user.id, access_token)
-                if success:
-                    print(f"👍 Thêm thành công {self.target_user.name} vào server {guild.name}")
-                    success_count += 1
-                else:
-                    print(f"👎 Lỗi khi thêm vào {guild.name}: {message}")
-                    fail_count += 1
-            except Exception as e:
-                print(f"👎 Lỗi không xác định khi thêm vào {guild.name}: {e}")
+        success_count, fail_count = 0, 0
+        for guild_id in self.selected_guild_ids:
+            success, message = await add_member_to_guild(guild_id, self.target_user.id, access_token)
+            if success:
+                success_count += 1
+            else:
                 fail_count += 1
         
         embed = discord.Embed(title=f"📊 Kết quả mời {self.target_user.name}", color=0x00ff00)
@@ -612,118 +591,89 @@ class RosterPages(discord.ui.View):
 
 class DeployView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild], agents: list[dict]):
-        super().__init__(timeout=300)  # Giao diện tồn tại trong 5 phút
+        super().__init__(timeout=300)
         self.author = author
         self.guilds = guilds
         self.agents = agents
         self.selected_guild = None
-        self.selected_users = []
+        self.selected_user_ids = set()
 
-        # Tạo menu chọn Server
-        self.add_item(self.create_guild_select())
-        # Tạo menu chọn User
-        self.add_item(self.create_user_select())
+        # Tạo menu chọn Server (chỉ chọn 1, có phân trang)
+        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
+        for index, chunk in enumerate(guild_chunks):
+            self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
-    def create_guild_select(self):
-        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in self.guilds]
-        select = discord.ui.Select(
-            placeholder="Bước 1: Chọn Server để triển khai...",
-            options=options,
-            row=0  # Đặt ở hàng đầu tiên
-        )
-        async def guild_callback(interaction: discord.Interaction):
+        # Tạo các menu chọn User (chọn nhiều, có phân trang)
+        agent_chunks = [self.agents[i:i + 25] for i in range(0, len(self.agents), 25)]
+        row_offset = len(guild_chunks) 
+        for index, chunk in enumerate(agent_chunks):
+            self.add_item(self.create_user_select(chunk, index, len(agent_chunks), row_offset))
+
+    def create_guild_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
+        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
+        placeholder = f"Bước 1: Chọn Server (Trang {page_index + 1}/{total_pages})"
+        
+        select = discord.ui.Select(placeholder=placeholder, options=options, row=page_index)
+        
+        async def callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id:
-                return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
-            
+                return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
             self.selected_guild = discord.utils.get(self.guilds, id=int(interaction.data["values"][0]))
-            await interaction.response.defer()
+            await interaction.response.send_message(f"✅ Đã chọn server: **{self.selected_guild.name}**", ephemeral=True)
         
-        select.callback = guild_callback
+        select.callback = callback
         return select
 
-    def create_user_select(self):
-        # Lấy 25 điệp viên đầu tiên vì menu có giới hạn
-        agent_options = self.agents[:25]
+    def create_user_select(self, agent_chunk: list[dict], page_index: int, total_pages: int, row_offset: int):
+        options = [discord.SelectOption(label=str(agent.get('username', agent.get('id'))), value=str(agent.get('id'))) for agent in agent_chunk]
+        placeholder = f"Bước 2: Chọn Điệp viên (Trang {page_index + 1}/{total_pages})"
         
-        options = [
-            discord.SelectOption(
-                label=str(agent.get('username', agent.get('id'))), 
-                value=str(agent.get('id'))
-            )
-            for agent in agent_options
-        ]
+        select = discord.ui.Select(placeholder=placeholder, min_values=1, max_values=len(options), options=options, row=row_offset + page_index)
 
-        if not options:
-            # Xử lý trường hợp không có điệp viên nào để chọn
-            return discord.ui.Select(placeholder="Không có điệp viên nào để chọn.", disabled=True, row=1)
-
-        select = discord.ui.Select(
-            placeholder="Bước 2: Chọn các Điệp viên để triển khai...",
-            min_values=1,
-            max_values=len(options), # Cho phép chọn nhiều
-            options=options,
-            row=1
-        )
-
-        async def user_callback(interaction: discord.Interaction):
+        async def callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id:
-                return await interaction.response.send_message("Bạn không có quyền tương tác.", ephemeral=True)
+                return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
             
-            self.selected_users = interaction.data["values"] # Lưu danh sách ID đã chọn
-            await interaction.response.defer()
+            ids_in_this_menu = {int(opt.value) for opt in select.options}
+            self.selected_user_ids.difference_update(ids_in_this_menu)
+            for uid in interaction.data["values"]:
+                self.selected_user_ids.add(int(uid))
+
+            await interaction.response.send_message(f"✅ Cập nhật! Đã chọn **{len(self.selected_user_ids)}** điệp viên.", ephemeral=True)
         
-        select.callback = user_callback
+        select.callback = callback
         return select
 
-    @discord.ui.button(label="Triển Khai", style=discord.ButtonStyle.danger, emoji="🚀", row=2)
+    @discord.ui.button(label="Triển Khai", style=discord.ButtonStyle.danger, emoji="🚀", row=4)
     async def deploy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id:
-            return await interaction.response.send_message("Bạn không có quyền sử dụng nút này.", ephemeral=True)
-
+            return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
         if not self.selected_guild:
-            return await interaction.response.send_message("Lỗi: Vui lòng chọn một Server.", ephemeral=True)
-        
-        if not self.selected_users:
+            return await interaction.response.send_message("Lỗi: Vui lòng chọn Server.", ephemeral=True)
+        if not self.selected_user_ids:
             return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Điệp viên.", ephemeral=True)
         
-        # Vô hiệu hóa giao diện sau khi nhấn
-        for item in self.children:
-            item.disabled = True
+        for item in self.children: item.disabled = True
         await interaction.response.edit_message(view=self)
-        
-        # Bắt đầu quá trình thêm
-        await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_users)} điệp viên tới server `{self.selected_guild.name}`...**")
+        await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_user_ids)} điệp viên tới `{self.selected_guild.name}`...**")
 
-        success_count = 0
-        fail_count = 0
-        failed_users = []
-
-        for user_id in self.selected_users:
-            user_id = int(user_id)
+        success_count, fail_count, failed_users = 0, 0, []
+        for user_id in self.selected_user_ids:
             access_token = get_user_access_token(user_id)
             if not access_token:
-                fail_count += 1
-                failed_users.append(f"<@{user_id}> (Không có token)")
-                continue
-
+                fail_count += 1; failed_users.append(f"<@{user_id}> (Không có token)"); continue
+            
             try:
                 success, message = await add_member_to_guild(self.selected_guild.id, user_id, access_token)
-                if success:
-                    success_count += 1
-                else:
-                    fail_count += 1
-                    failed_users.append(f"<@{user_id}> ({message[:50]})") # Cắt ngắn lỗi
+                if success: success_count += 1
+                else: fail_count += 1; failed_users.append(f"<@{user_id}> ({message[:50]})")
             except Exception as e:
-                fail_count += 1
-                failed_users.append(f"<@{user_id}> (Lỗi: {e})")
+                fail_count += 1; failed_users.append(f"<@{user_id}> (Lỗi: {e})")
 
-        # Gửi báo cáo kết quả
         embed = discord.Embed(title=f"Báo Cáo Triển Khai tới {self.selected_guild.name}", color=0x00ff00)
         embed.add_field(name="✅ Thành Công", value=f"{success_count} điệp viên", inline=True)
         embed.add_field(name="❌ Thất Bại", value=f"{fail_count} điệp viên", inline=True)
-        if failed_users:
-            embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
-        
+        if failed_users: embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
         await interaction.followup.send(embed=embed)
 
 # --- Modal 1: Nhập số lượng kênh ---
@@ -921,82 +871,40 @@ class GetChannelIdView(discord.ui.View):
         super().__init__(timeout=300)
         self.author = author
         self.guilds = guilds
-        self.selected_guilds = []
+        self.selected_guild_ids = set()
         
-        # Thêm menu chọn server vào giao diện
-        self.add_item(self.create_guild_select())
+        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
+        for index, chunk in enumerate(guild_chunks):
+            self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
-    def create_guild_select(self):
-        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in self.guilds]
-        select = discord.ui.Select(
-            placeholder="Bước 1: Chọn một hoặc nhiều Server để tìm kênh...",
-            options=options,
-            min_values=1,
-            max_values=len(options)
-        )
-        async def guild_callback(interaction: discord.Interaction):
-            if interaction.user.id != self.author.id: return
-            self.selected_guilds = [discord.utils.get(self.guilds, id=int(gid)) for gid in interaction.data["values"]]
-            await interaction.response.defer()
+    def create_guild_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
+        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
+        placeholder = f"Bước 1: Chọn Server (Trang {page_index + 1}/{total_pages})"
+        select = discord.ui.Select(placeholder=placeholder, options=options, min_values=1, max_values=len(options))
         
-        select.callback = guild_callback
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id: return
+
+            ids_in_this_menu = {int(opt.value) for opt in select.options}
+            self.selected_guild_ids.difference_update(ids_in_this_menu)
+            for gid in interaction.data["values"]:
+                self.selected_guild_ids.add(int(gid))
+
+            await interaction.response.send_message(f"✅ Đã cập nhật lựa chọn server.", ephemeral=True)
+        
+        select.callback = callback
         return select
 
     @discord.ui.button(label="Bước 2: Nhập Tên Kênh & Lấy ID", style=discord.ButtonStyle.primary, emoji="🔎")
     async def open_name_modal(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.author.id: return
-        if not self.selected_guilds:
+        if not self.selected_guild_ids:
             return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Server từ menu.", ephemeral=True)
         
-        # Mở Modal để người dùng nhập tên kênh
-        modal = ChannelNameModal(self.selected_guilds)
+        selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
+        
+        modal = ChannelNameModal(selected_guilds)
         await interaction.response.send_modal(modal)
-
-# --- Modal để nhập tên kênh cần tìm ---
-class ChannelNameModal(discord.ui.Modal, title="Nhập Tên Kênh Cần Tìm"):
-    def __init__(self, selected_guilds: list[discord.Guild]):
-        super().__init__()
-        self.selected_guilds = selected_guilds
-
-    channel_name = discord.ui.TextInput(
-        label="Tên kênh bạn muốn tìm ID",
-        placeholder="Nhập chính xác tên kênh, không bao gồm dấu #",
-        required=True
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.send_message(f"🔎 Đang tìm kiếm các kênh có tên `{self.channel_name.value}`...", ephemeral=True)
-        
-        results = {}
-        target_name = self.channel_name.value.lower().strip()
-
-        for guild in self.selected_guilds:
-            found_channels = []
-            for channel in guild.text_channels:
-                if channel.name.lower() == target_name:
-                    found_channels.append(channel.id)
-            
-            if found_channels:
-                results[guild.name] = found_channels
-
-        # Tạo Embed kết quả
-        if not results:
-            embed = discord.Embed(
-                title="Không Tìm Thấy Kết Quả",
-                description=f"Không tìm thấy kênh nào có tên `{self.channel_name.value}` trong các server đã chọn.",
-                color=discord.Color.red()
-            )
-        else:
-            embed = discord.Embed(
-                title=f"Kết Quả Tìm Kiếm cho Kênh '{self.channel_name.value}'",
-                color=discord.Color.green()
-            )
-            for guild_name, channel_ids in results.items():
-                # Chuyển danh sách ID thành một chuỗi văn bản
-                id_string = "\n".join([f"`{channel_id}`" for channel_id in channel_ids])
-                embed.add_field(name=f"🖥️ Server: {guild_name}", value=id_string, inline=False)
-        
-        await interaction.followup.send(embed=embed)
         
 # --- DISCORD BOT EVENTS ---
 @bot.event
@@ -2518,6 +2426,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
