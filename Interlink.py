@@ -865,7 +865,52 @@ class CreateChannelView(discord.ui.View):
         view = QuantityView(selected_guilds, self.author)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
-# --- View để lấy ID kênh ---
+# --- Getid ---
+class ChannelNameModal(discord.ui.Modal, title="Nhập Tên Kênh Cần Tìm"):
+    def __init__(self, selected_guilds: list[discord.Guild]):
+        super().__init__()
+        self.selected_guilds = selected_guilds
+
+    channel_name = discord.ui.TextInput(
+        label="Tên kênh bạn muốn tìm ID",
+        placeholder="Nhập chính xác tên kênh, không bao gồm dấu #",
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f"🔎 Đang tìm kiếm các kênh có tên `{self.channel_name.value}`...", ephemeral=True)
+        
+        results = {}
+        target_name = self.channel_name.value.lower().strip()
+
+        for guild in self.selected_guilds:
+            found_channels = []
+            for channel in guild.text_channels:
+                if channel.name.lower() == target_name:
+                    found_channels.append(channel.id)
+            
+            if found_channels:
+                results[guild.name] = found_channels
+
+        # Tạo Embed kết quả
+        if not results:
+            embed = discord.Embed(
+                title="Không Tìm Thấy Kết Quả",
+                description=f"Không tìm thấy kênh nào có tên `{self.channel_name.value}` trong các server đã chọn.",
+                color=discord.Color.red()
+            )
+        else:
+            embed = discord.Embed(
+                title=f"Kết Quả Tìm Kiếm cho Kênh '{self.channel_name.value}'",
+                color=discord.Color.green()
+            )
+            for guild_name, channel_ids in results.items():
+                id_string = "\n".join([f"`{channel_id}`" for channel_id in channel_ids])
+                embed.add_field(name=f"🖥️ Server: {guild_name}", value=id_string, inline=False)
+        
+        await interaction.followup.send(embed=embed)
+        
+# --- View để lấy ID kênh (Đã sửa lỗi phân trang) ---
 class GetChannelIdView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild]):
         super().__init__(timeout=300)
@@ -873,7 +918,10 @@ class GetChannelIdView(discord.ui.View):
         self.guilds = guilds
         self.selected_guild_ids = set()
         
+        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25
         guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
+
+        # Tạo một menu cho mỗi phần
         for index, chunk in enumerate(guild_chunks):
             self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
 
@@ -885,6 +933,7 @@ class GetChannelIdView(discord.ui.View):
         async def callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
 
+            # Cập nhật tập hợp các ID đã chọn
             ids_in_this_menu = {int(opt.value) for opt in select.options}
             self.selected_guild_ids.difference_update(ids_in_this_menu)
             for gid in interaction.data["values"]:
@@ -901,8 +950,10 @@ class GetChannelIdView(discord.ui.View):
         if not self.selected_guild_ids:
             return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Server từ menu.", ephemeral=True)
         
+        # Lấy các đối tượng guild từ các ID đã chọn
         selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
         
+        # Mở Modal để người dùng nhập tên kênh (Dòng này giờ sẽ hoạt động)
         modal = ChannelNameModal(selected_guilds)
         await interaction.response.send_modal(modal)
         
@@ -2426,6 +2477,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
