@@ -13,6 +13,8 @@ from urllib.parse import urlparse
 import time
 from PIL import Image, ImageDraw
 import io
+import io
+from kvi_support import KVIHelper, KVI_CHANNELS
 
 # Try to import psycopg2, fallback to JSONBin if not available
 try:
@@ -374,6 +376,8 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
+bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
+bot.kvi_helper = KVIHelper(bot)
 
 # --- FLASK WEB SERVER SETUP ---
 app = Flask(__name__)
@@ -977,6 +981,21 @@ async def on_ready():
         print(f"❌ Không thể đồng bộ lệnh slash: {e}")
     print('------')
 
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+    if KVI_CHANNELS:
+        await bot.kvi_helper.handle_kvi_message(message)
+    await bot.process_commands(message)
+
+@bot.event
+async def on_message_edit(before, after):
+    if after.author == bot.user:
+        return
+    if KVI_CHANNELS:
+        await bot.kvi_helper.handle_kvi_update(before, after)
+        
 # --- DISCORD BOT COMMANDS ---
 @bot.command(name='ping', help='Kiểm tra độ trễ kết nối của bot.')
 async def ping(ctx):
@@ -2477,6 +2496,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
