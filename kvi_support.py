@@ -15,55 +15,161 @@ class KVIHelper:
     def __init__(self, bot):
         self.bot = bot
         self.api_key = GEMINI_API_KEY
-        self.http_session = None
+        self.http_session = aiohttp.ClientSession()
         self.kvi_sessions = {}
         if not self.api_key:
             print("⚠️ [KVI] Cảnh báo: Không tìm thấy GEMINI_API_KEY.")
 
     async def async_setup(self):
         """Tạo HTTP session sau khi bot sẵn sàng"""
-        if not self.http_session:
+        if not self.http_session or self.http_session.closed:
             self.http_session = aiohttp.ClientSession()
             print("✅ [KVI] HTTP session đã sẵn sàng.")
 
     def parse_karuta_embed(self, embed) -> Optional[Dict]:
-        """Phân tích embed của Karuta để lấy thông tin"""
-        try:
-            description = embed.description or ""
-            
-            # Tìm tên nhân vật
-            char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
-            character_name = char_match.group(1).strip() if char_match else None
+        """
+        Phân tích embed của Karuta để lấy thông tin.
+        *** ĐÃ NÂNG CẤP THEO CODE THAM KHẢO CỦA BẠN ***
+        """
+        description = embed.description or ""
         
-            # Tìm câu hỏi trong dấu ngoặc kép
-            question_match = re.search(r'[""]([^""]+)[""]', description)
-            question = question_match.group(1).strip() if question_match else None
-            
-            # Tìm các lựa chọn (có thể ít hơn 5)
-            choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILINE)
-            
-            # Tạo dictionary mapping emoji -> số
-            emoji_to_number = {
-                '1️⃣': 1, '2️⃣': 2, '3️⃣': 3, '4️⃣': 4, '5️⃣': 5
-            }
-            
-            choices = []
-            for emoji, text in choice_lines:
-                if emoji in emoji_to_number:
-                    choices.append({
-                        "number": emoji_to_number[emoji], 
-                        "text": text.strip()
-                    })
-            
-            # Kiểm tra có ít nhất 2 lựa chọn và các thông tin cần thiết
-            if not character_name or not question or len(choices) < 2:
-                print(f"[PARSER] Thiếu thông tin - Character: {character_name}, Question: {bool(question)}, Choices: {len(choices)}")
-                return None
-                
-            return {"character": character_name, "question": question, "choices": choices}
-        except Exception as e:
-            print(f"❌ [PARSER] Lỗi: {e}")
+        # Tìm tên nhân vật
+        char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
+        character_name = char_match.group(1).strip() if char_match else None
+
+        # Tìm câu hỏi trong dấu ngoặc kép "..." hoặc "..."
+        question_match = re.search(r'[""]([^""]+)[""]', description)
+        question = question_match.group(1).strip() if question_match else None
+        
+        # Tìm tất cả các dòng bắt đầu bằng emoji số và lấy nội dung (Logic mới, chính xác hơn)
+        choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)
+
+    async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
+        """Sử dụng Google Gemini để phân tích qua aiohttp."""
+        if not self.api_key:
             return None
+        
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
+        
+        choices_text = "\n".join([f"{c['number']}. {c['text']}" for c in choices])
+        prompt = (
+            f"You are an expert anime character analyst. Analyze '{character}'. "
+            f"Based on their personality, answer the question: '{question}'.\n"
+            f"Choices:\n{choices_text}\n"
+            f"Respond ONLY with a valid JSON object in the format: "
+            f'{{"analysis":"brief analysis","percentages":[{{"choice":1,"percentage":_}},{{"choice":2,"percentage":_}}]}}'
+        )
+
+        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+
+        try:
+            async with self.http_session.post(url, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    result_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    result_text = result_text.strip().replace("```json", "").replace("```", "").strip()
+                    return json.loads(result_text)
+                else:
+                    error_text = await response.text()
+                    print(f"❌ [GEMINI] Lỗi API ({response.status}): {error_text}")
+                    return None
+        except Exception as e:
+            print(f"❌ [GEMINI] Lỗi kết nối hoặc xử lý: {e}")
+            return None
+
+    async def create_suggestion_embed(self, kvi_data: Dict, ai_result: Dict) -> discord.Embed:
+        """Tạo embed gợi ý theo style code cũ"""
+        embed = discord.Embed(title="🤖 Interlink KVI Helper (Google AI)", color=0x4285F4)
+        description_lines = [
+            f"**Character:** {kvi_data['character']}",
+            f"**Question:** \"{kvi_data['question']}\"",
+            "",
+            "**AI Analysis:**",
+            ai_result.get('analysis', 'Đang phân tích...'),
+            "",
+            "**Suggestions:**"
+        ]
+        
+        percentages = sorted(ai_result.get('percentages', []), key=lambda x: x.get('percentage', 0), reverse=True)
+        
+        for item in percentages:
+            choice_num = item.get('choice')
+            percentage = item.get('percentage')
+            if choice_num is None or percentage is None: 
+                continue
+
+            emoji = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'][choice_num - 1]
+            choice_text = next((c['text'] for c in kvi_data['choices'] if c['number'] == choice_num), "")
+            description_lines.append(f"{emoji} **{percentage}%** - {choice_text}")
+        
+        embed.description = "\n".join(description_lines)
+        embed.set_footer(text="Powered by Google Gemini")
+        return embed
+
+    def is_kvi_message(self, embed) -> bool:
+        """Kiểm tra xem có phải tin nhắn KVI không - Logic đơn giản từ code cũ"""
+        description = embed.description or ""
+        
+        # Kiểm tra đơn giản: có "1️⃣" và không phải thông báo kết quả
+        if "Your Affection Rating has" in description or "1️⃣" not in description:
+            return False
+            
+        return True
+
+    async def handle_kvi_message(self, message):
+        # Logic đơn giản từ code cũ
+        if message.author.id != KARUTA_ID or not message.embeds:
+            return
+
+        embed = message.embeds[0]
+        
+        # Kiểm tra có phải tin nhắn KVI không
+        if not self.is_kvi_message(embed):
+            return
+        
+        print(f"\n[INTERLINK KVI] Phát hiện câu hỏi KVI từ Karuta")
+        
+        kvi_data = self.parse_karuta_embed(embed)
+        if not kvi_data:
+            print("[DEBUG] Thoát: Phân tích embed thất bại.")
+            return
+        print(f"[DEBUG] Phân tích embed thành công - Character: {kvi_data['character']}")
+        
+        # Kiểm tra trùng lặp
+        session = self.kvi_sessions.get(message.channel.id, {})
+        if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
+            print("[DEBUG] Thoát: Bỏ qua sự kiện trùng lặp cho cùng một câu hỏi.")
+            return
+        
+        # Cập nhật session
+        self.kvi_sessions[message.channel.id] = {
+            "message_id": message.id,
+            "last_question": kvi_data["question"]
+        }
+            
+        print("[DEBUG] Đang gọi AI để phân tích...")
+        ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
+        if not ai_result:
+            print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả về kết quả.")
+            return
+        
+        print("[DEBUG] AI phân tích thành công, tạo embed gợi ý...")
+        suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
+        
+        try:
+            await message.channel.send(embed=suggestion_embed)
+            print("✅ Đã gửi gợi ý từ Google Gemini.")
+        except Exception as e:
+            print(f"❌ Lỗi khi gửi embed gợi ý: {e}")
+, description, re.MULTILINE)
+        
+        choices = [{"number": int(emoji[0]), "text": text.strip()} for emoji, text in choice_lines]
+        
+        if not all([character_name, question, choices]):
+            print("❌ [PARSER] Không đủ thông tin để phân tích embed của Karuta.")
+            return None
+            
+        return {"character": character_name, "question": question, "choices": choices}
 
     async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
         """Phân tích bằng AI"""
