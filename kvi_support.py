@@ -40,7 +40,7 @@ class KVIHelper:
             question = question_match.group(1).strip() if question_match else None
             
             # Tìm các lựa chọn (có thể ít hơn 5)
-            choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILINE)
+            choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$')
 
     async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
         """Phân tích bằng AI"""
