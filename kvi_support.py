@@ -197,63 +197,100 @@ class KVIHelper:
             return False
 
     async def handle_kvi_message(self, message):
-        print(f"\n[DEBUG] Step 1: Bot nhìn thấy tin nhắn từ '{message.author.name}'.")
-
+        print(f"\n[DEBUG] Step 1: Bot nhìn thấy tin nhắn từ '{message.author.name}' (ID: {message.author.id}).")
+    
         # Chỉ xử lý tin nhắn từ Karuta
         if message.author.id != KARUTA_ID:
             return
-
-        try:
-            await asyncio.sleep(1)
-            message = await message.channel.fetch_message(message.id)
-        except Exception as e:
-            print(f"❌ [DEBUG] Lỗi tải tin nhắn: {e}")
-            return
-
-        # Kiểm tra có embed không
-        if not message.embeds:
-            print("[DEBUG] Step 2: THẤT BẠI - Tin nhắn không có embed")
-            return
-        print(f"[DEBUG] Step 2: THÀNH CÔNG - Tin nhắn có {len(message.embeds)} embed")
-
+    
+        # Cơ chế thử lại tải tin nhắn
+        max_retries = 3
+        retry_delay = 3  # Tăng từ 1 lên 3 giây
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"[DEBUG] Step 2.{attempt}: Đợi {retry_delay} giây trước khi tải lại tin nhắn...")
+                await asyncio.sleep(retry_delay)
+                
+                # Tải lại tin nhắn từ Discord
+                refreshed_message = await message.channel.fetch_message(message.id)
+                print(f"[DEBUG] Step 2.{attempt}: Tải lại tin nhắn thành công")
+                
+                # Kiểm tra embed
+                if not refreshed_message.embeds:
+                    print(f"[DEBUG] Step 2.{attempt}: THẤT BẠI - Tin nhắn không có embed")
+                    if attempt < max_retries:
+                        print(f"[DEBUG] Step 2.{attempt}: Thử lại lần {attempt + 1}...")
+                        continue
+                    else:
+                        print("[DEBUG] Step 2: THẤT BẠI - Đã thử 3 lần, tin nhắn vẫn không có embed")
+                        return
+                else:
+                    print(f"[DEBUG] Step 2.{attempt}: THÀNH CÔNG - Tin nhắn có {len(refreshed_message.embeds)} embed")
+                    message = refreshed_message  # Cập nhật message với phiên bản có embed
+                    break
+                    
+            except discord.NotFound:
+                print(f"[DEBUG] Step 2.{attempt}: Lỗi - Tin nhắn không tồn tại hoặc đã bị xóa")
+                return
+            except discord.Forbidden:
+                print(f"[DEBUG] Step 2.{attempt}: Lỗi - Bot không có quyền đọc tin nhắn")
+                return
+            except discord.HTTPException as e:
+                print(f"[DEBUG] Step 2.{attempt}: Lỗi HTTP {e.status}: {e.text}")
+                if attempt < max_retries:
+                    print(f"[DEBUG] Step 2.{attempt}: Thử lại lần {attempt + 1}...")
+                    continue
+                else:
+                    print("[DEBUG] Step 2: THẤT BẠI - Đã thử 3 lần, không thể tải tin nhắn")
+                    return
+            except Exception as e:
+                print(f"[DEBUG] Step 2.{attempt}: Lỗi không xác định: {e}")
+                if attempt < max_retries:
+                    print(f"[DEBUG] Step 2.{attempt}: Thử lại lần {attempt + 1}...")
+                    continue
+                else:
+                    print("[DEBUG] Step 2: THẤT BẠI - Đã thử 3 lần, vẫn gặp lỗi")
+                    return
+    
         embed = message.embeds[0]
-
+    
         # Kiểm tra có phải KVI không
         if not self.is_kvi_message(embed):
             print("[DEBUG] Step 3: THẤT BẠI - Không phải tin nhắn KVI")
             return
         print("[DEBUG] Step 3: THÀNH CÔNG - Đây là câu hỏi KVI hợp lệ")
-
+    
         # Phân tích embed
         kvi_data = self.parse_karuta_embed(embed)
         if not kvi_data:
             print("[DEBUG] Step 4: THẤT BẠI - Phân tích embed thất bại")
             return
         print(f"[DEBUG] Step 4: THÀNH CÔNG - Phân tích embed thành công - Character: {kvi_data['character']}")
-
+    
         # Kiểm tra trùng lặp
         session = self.kvi_sessions.get(message.channel.id, {})
         if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
             print("[DEBUG] Step 5: THÀNH CÔNG - Bỏ qua sự kiện trùng lặp")
             return
         print("[DEBUG] Step 5: Cập nhật session")
-
+    
         self.kvi_sessions[message.channel.id] = {
             "message_id": message.id,
             "last_question": kvi_data["question"]
         }
-
+    
         # Gọi AI để phân tích
         print("[DEBUG] Step 6: Gọi AI để phân tích...")
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
             print("[DEBUG] Step 6: THẤT BẠI - AI phân tích thất bại")
             return
-
+    
         # Tạo embed gợi ý
         print("[DEBUG] Step 7: Tạo embed gợi ý...")
         suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
-
+    
         try:
             await message.channel.send(embed=suggestion_embed)
             print("[DEBUG] Step 8: THÀNH CÔNG - Gửi gợi ý thành công!")
