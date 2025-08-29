@@ -132,6 +132,8 @@ class KVIHelper:
         return embed
 
 
+# Trong file kvi_support.py
+
     async def handle_kvi_message(self, message):
         # DÒNG MỚI: Khai báo để sử dụng biến toàn cục
         global kvi_sessions
@@ -150,13 +152,12 @@ class KVIHelper:
         if not kvi_data:
             return
     
-        # --- LOGIC XỬ LÝ PHIÊN MỚI (ĐÃ NÂNG CẤP) ---
         # Lấy session của kênh này
         session = kvi_sessions.get(message.channel.id, {})
         
         # Nếu tin nhắn này có cùng ID VÀ cùng nội dung câu hỏi, thì bỏ qua
         if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
-            return # Đây là một lần edit nhỏ (ví dụ có người react), không phải câu hỏi mới
+            return
     
         # Nếu không, cập nhật session với câu hỏi mới và tiếp tục
         print(f"\n[INTERLINK KVI] Phát hiện câu hỏi KVI mới trong kênh {message.channel.id}")
@@ -164,7 +165,6 @@ class KVIHelper:
             "message_id": message.id,
             "last_question": kvi_data["question"]
         }
-        # --- KẾT THÚC LOGIC MỚI ---
             
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
