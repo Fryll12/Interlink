@@ -999,9 +999,6 @@ async def on_message_edit(before, after):
     """
     if after.author == bot.user:
         return
-    # Giao cho KVI Helper xử lý y hệt như tin nhắn mới
-    if KVI_CHANNELS:
-        await bot.kvi_helper.handle_kvi_message(after)
         
 # --- DISCORD BOT COMMANDS ---
 @bot.command(name='ping', help='Kiểm tra độ trễ kết nối của bot.')
@@ -2503,6 +2500,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
