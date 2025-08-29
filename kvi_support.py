@@ -167,4 +167,4 @@ class KVIHelper:
         print("[DEBUG] Step 6: Đang gọi AI để phân tích...")
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
-            print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả
+            print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả về kết quả.")
