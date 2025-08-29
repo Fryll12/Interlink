@@ -64,31 +64,69 @@ class KVIHelper:
             "num_choices": len(choices)
         }
     
-    async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[int]:
-        """Sử dụng ChatGPT để phân tích và đưa ra câu trả lời tốt nhất"""
-        try:
-            if not self.ai_client:
-                # Fallback với mock data nếu không có API key
-                import random
-                total = 100
-                percentages = []
-                for i, choice in enumerate(choices):
-                    if i == len(choices) - 1:  # Choice cuối cùng
-                        percent = total
-                    else:
-                        percent = random.randint(5, min(70, total - 5 * (len(choices) - i - 1)))
-                        total -= percent
-                    
-                    percentages.append({
-                        "choice": choice["number"], 
-                        "percentage": percent, 
-                        "reasoning": f"Mock analysis for choice {choice['number']}"
-                    })
+    
+    async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
+        """
+        Sử dụng ChatGPT để phân tích.
+        Nếu không có API key hoặc có lỗi, sẽ tự động chuyển sang chế độ chọn ngẫu nhiên.
+        """
+        # --- PHẦN GỌI AI THẬT ---
+        if self.ai_client:
+            try:
+                choices_text = "\n".join([f"{c['number']}. {c['text']}" for c in choices])
+                prompt = (
+                    f"You are an expert anime character analyst. Analyze the personality of '{character}'. "
+                    f"Based on their personality, determine the most likely correct answer to the question: '{question}'.\n"
+                    f"Choices:\n{choices_text}\n"
+                    f"Respond ONLY with a valid JSON object in the format: "
+                    f'{{"analysis":"brief analysis","percentages":[{{"choice":1,"percentage":_}},{{"choice":2,"percentage":_}}]}}'
+                )
                 
-                return {
-                    "analysis": f"Mock analysis cho nhân vật {character}",
-                    "percentages": percentages
-                }
+                print("[INTERLINK KVI] Đang phân tích với OpenAI...")
+                response = await self.ai_client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are an expert anime character analyst. Respond accurately in the requested JSON format."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    max_tokens=500,
+                    temperature=0.6
+                )
+                result_text = response.choices[0].message.content
+                # Trả về kết quả từ AI
+                return json.loads(result_text)
+            except Exception as e:
+                print(f"❌ Lỗi khi gọi API OpenAI: {e}. Chuyển sang chế độ ngẫu nhiên.")
+                # Nếu có lỗi, sẽ chạy xuống phần fallback bên dưới
+    
+        # --- PHẦN FALLBACK MIỄN PHÍ (CHỌN NGẪU NHIÊN) ---
+        print("⚠️  Không có API Key hoặc API lỗi. Chuyển sang chế độ gợi ý ngẫu nhiên (MIỄN PHÍ).")
+        import random
+        
+        # Tạo ra các phần trăm ngẫu nhiên
+        percentages_list = []
+        num_choices = len(choices)
+        remaining_percent = 100
+        
+        for i in range(num_choices - 1):
+            # Mỗi lựa chọn sẽ nhận một phần ngẫu nhiên, chừa lại ít nhất 5% cho các lựa chọn sau
+            percent = random.randint(5, remaining_percent - (5 * (num_choices - 1 - i)))
+            percentages_list.append(percent)
+            remaining_percent -= percent
+        percentages_list.append(remaining_percent) # Lựa chọn cuối cùng nhận phần còn lại
+        
+        random.shuffle(percentages_list) # Xáo trộn các phần trăm để không bị thiên vị
+    
+        # Tạo cấu trúc JSON giả để trả về
+        mock_percentages = [
+            {"choice": choice["number"], "percentage": percentages_list[i]} 
+            for i, choice in enumerate(choices)
+        ]
+    
+        return {
+            "analysis": "Chế độ miễn phí: Gợi ý được tạo ngẫu nhiên do không có API key hoặc API bị lỗi.",
+            "percentages": mock_percentages
+        }
             
             # Tạo prompt cho ChatGPT
             choices_text = "\n".join([f"{choice['number']}. {choice['text']}" for choice in choices])
