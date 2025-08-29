@@ -958,27 +958,6 @@ class GetChannelIdView(discord.ui.View):
         # Mở Modal để người dùng nhập tên kênh (Dòng này giờ sẽ hoạt động)
         modal = ChannelNameModal(selected_guilds)
         await interaction.response.send_modal(modal)
-        
-# --- DISCORD BOT EVENTS ---
-@bot.event
-async def on_ready():
-    print(f'✅ Bot đăng nhập thành công: {bot.user.name}')
-    print(f'🔗 Web server: {RENDER_URL}')
-    print(f'🔑 Redirect URI: {REDIRECT_URI}')
-    
-    # Check storage status
-    db_status = "Connected" if get_db_connection() else "Unavailable"
-    jsonbin_status = "Connected" if JSONBIN_API_KEY else "Not configured"
-    print(f'💾 Database: {db_status}')
-    print(f'🌐 JSONBin.io: {jsonbin_status}')
-    await bot.kvi_helper.async_setup()
-    
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ Đã đồng bộ {len(synced)} lệnh slash.")
-    except Exception as e:
-        print(f"❌ Không thể đồng bộ lệnh slash: {e}")
-    print('------')
 
 # --- DISCORD BOT EVENTS ---
 @bot.event
@@ -1013,7 +992,15 @@ async def on_message(message):
     
     # Xử lý các lệnh !command
     await bot.process_commands(message)
-        
+
+@bot.event
+async def on_message_edit(before, after):
+    """Xử lý khi tin nhắn được CHỈNH SỬA."""
+    if after.author == bot.user:
+        return
+    # Giao cho KVI Helper xử lý y hệt như tin nhắn mới
+    await bot.kvi_helper.handle_kvi_message(after)
+    
 # --- DISCORD BOT COMMANDS ---
 @bot.command(name='ping', help='Kiểm tra độ trễ kết nối của bot.')
 async def ping(ctx):
@@ -2514,6 +2501,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
