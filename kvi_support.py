@@ -119,23 +119,30 @@ class KVIHelper:
         embed.set_footer(text="🤖 Gemini AI")
         return embed
 
+
     async def handle_kvi_message(self, message):
-        global kvi_sessions
         print(f"\n[DEBUG] Step 1: Bot nhìn thấy tin nhắn từ '{message.author.name}'.")
-        
-        # --- DÒNG KIỂM TRA MỚI ---
-        # In ra ID mà bot thực sự nhìn thấy và ID nó đang mong đợi
-        print(f"[DEBUG] ID của người gửi: {message.author.id}")
-        print(f"[DEBUG] ID Karuta mong đợi: {KARUTA_ID}")
-        # --- KẾT THÚC DÒNG KIỂM TRA ---
     
-        # Kiểm tra xem có phải tin nhắn của Karuta không
-        if message.author.id != KARUTA_ID or not message.embeds:
+        # Chỉ xử lý tin nhắn từ Karuta
+        if message.author.id != KARUTA_ID:
+            return
+    
+        try:
+            # Chờ và tải lại tin nhắn để đảm bảo có embed
+            await asyncio.sleep(1)
+            message = await message.channel.fetch_message(message.id)
+        except Exception as e:
+            print(f"❌ [DEBUG] Lỗi ở Step 1.5 (tải lại tin nhắn): {e}")
+            return
+    
+        # Bây giờ, tiếp tục xử lý
+        if not message.embeds:
             return 
-        print("[DEBUG] Step 2: Tin nhắn này là của Karuta.")
-        # ... (phần còn lại của hàm giữ nguyên) ...
+        print("[DEBUG] Step 2: Tin nhắn là của Karuta và có embed.")
+        
         embed = message.embeds[0]
         description = embed.description or ""
+        
         if "Your Affection Rating has" in description or "1️⃣" not in description:
             return
         print("[DEBUG] Step 3: Tin nhắn là một câu hỏi KVI hợp lệ.")
@@ -160,14 +167,4 @@ class KVIHelper:
         print("[DEBUG] Step 6: Đang gọi AI để phân tích...")
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
-            print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả về kết quả.")
-            return
-        print("[DEBUG] Step 7: AI phân tích thành công.")
-            
-        try:
-            print("[DEBUG] Step 8: Chuẩn bị gửi tin nhắn gợi ý...")
-            suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
-            await message.channel.send(embed=suggestion_embed)
-            print("✅✅✅ [DEBUG] Step 9: Gửi gợi ý thành công!")
-        except Exception as e:
-            print(f"❌ [DEBUG] LỖI CUỐI CÙNG: Không thể gửi tin nhắn. Lỗi: {e}")
+            print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả
