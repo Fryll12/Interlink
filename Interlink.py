@@ -971,6 +971,7 @@ async def on_ready():
     jsonbin_status = "Connected" if JSONBIN_API_KEY else "Not configured"
     print(f'💾 Database: {db_status}')
     print(f'🌐 JSONBin.io: {jsonbin_status}')
+    await bot.kvi_helper.async_setup()
     
     try:
         synced = await bot.tree.sync()
@@ -2494,6 +2495,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
