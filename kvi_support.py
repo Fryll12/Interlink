@@ -49,7 +49,7 @@ class KVIHelper:
         question = question_match.group(1).strip() if question_match else None
         
         # Tìm tất cả các dòng bắt đầu bằng emoji số và lấy nội dung (Logic mới, chính xác hơn)
-        choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILILINE)
+        choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILINE)
         
         choices = [{"number": int(emoji[0]), "text": text.strip()} for emoji, text in choice_lines]
         
