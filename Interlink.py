@@ -987,13 +987,6 @@ async def on_message(message):
     if KVI_CHANNELS:
         await bot.kvi_helper.handle_kvi_message(message)
     await bot.process_commands(message)
-
-@bot.event
-async def on_message_edit(before, after):
-    if after.author == bot.user:
-        return
-    if KVI_CHANNELS:
-        await bot.kvi_helper.handle_kvi_update(before, after)
         
 # --- DISCORD BOT COMMANDS ---
 @bot.command(name='ping', help='Kiểm tra độ trễ kết nối của bot.')
@@ -2495,6 +2488,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
