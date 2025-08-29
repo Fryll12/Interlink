@@ -14,16 +14,27 @@ KVI_CHANNELS = [int(ch.strip()) for ch in KVI_CHANNELS_STR.split(',') if ch.stri
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY') # Đổi tên biến môi trường cho nhất quán
 
 # --- LOGIC CHÍNH ---
+# Dán toàn bộ class này vào kvi_support.py, thay thế cho class cũ
+
 class KVIHelper:
     def __init__(self, bot):
         self.bot = bot
         self.api_key = GEMINI_API_KEY
-        self.http_session = aiohttp.ClientSession() # Tạo một session để tái sử dụng
+        # THAY ĐỔI 1: Khởi tạo là None, sẽ tạo sau
+        self.http_session = None
         if not self.api_key:
             print("⚠️ [KVI] Cảnh báo: Không tìm thấy GEMINI_API_KEY.")
 
+    async def async_setup(self):
+        """
+        Hàm này sẽ được gọi sau khi bot đã sẵn sàng.
+        Nó tạo ra ClientSession một cách an toàn.
+        """
+        self.http_session = aiohttp.ClientSession()
+        print("✅ [KVI] Aiohttp client session đã được tạo.")
+
     def parse_karuta_embed(self, embed) -> Optional[Dict]:
-        """Phân tích embed của Karuta để lấy thông tin."""
+        # ... (Hàm này giữ nguyên, không cần thay đổi) ...
         description = embed.description or ""
         char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
         character_name = char_match.group(1).strip() if char_match else None
@@ -39,11 +50,15 @@ class KVIHelper:
         return {"character": character_name, "question": question, "choices": choices}
 
     async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
-        """Sử dụng Google Gemini để phân tích qua aiohttp."""
+        # ... (Hàm này giữ nguyên, không cần thay đổi) ...
         if not self.api_key:
             print("Lỗi: AI Model chưa được cấu hình vì thiếu API key.")
             return None
         
+        # THAY ĐỔI 2: Đảm bảo session đã được tạo
+        if not self.http_session:
+            await self.async_setup()
+
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={self.api_key}"
         
         choices_text = "\n".join([f"{c['number']}. {c['text']}" for c in choices])
@@ -66,7 +81,6 @@ class KVIHelper:
             async with self.http_session.post(url, json=payload) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Trích xuất nội dung text từ response phức tạp của Gemini
                     result_text = data["candidates"][0]["content"]["parts"][0]["text"]
                     result_text = result_text.strip().replace("```json", "").replace("```", "").strip()
                     print("✅ [GEMINI] Phân tích thành công!")
@@ -80,6 +94,7 @@ class KVIHelper:
             return None
 
     async def create_suggestion_embed(self, kvi_data: Dict, ai_result: Dict) -> discord.Embed:
+        # ... (Hàm này giữ nguyên, không cần thay đổi) ...
         embed = discord.Embed(title="🤖 Interlink KVI Helper (Google AI)", color=0x4285F4)
         description_lines = [
             f"**Character:** {kvi_data['character']}",
@@ -107,6 +122,7 @@ class KVIHelper:
         return embed
 
     async def handle_kvi_message(self, message):
+        # ... (Hàm này giữ nguyên, không cần thay đổi) ...
         if message.author.id != KARUTA_ID or message.channel.id not in KVI_CHANNELS or not message.embeds:
             return
 
