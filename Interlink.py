@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import time
 from PIL import Image, ImageDraw
 import io
-from kvi_support import KVIHelper, KVI_CHANNELS
+from kvi_support import KVIHelper
 
 # Try to import psycopg2, fallback to JSONBin if not available
 try:
@@ -982,13 +982,13 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    """Xử lý khi có tin nhắn MỚI."""
     if message.author == bot.user:
         return
-    # Giao cho KVI Helper xử lý
-    if KVI_CHANNELS:
-        await bot.kvi_helper.handle_kvi_message(message)
-    # Xử lý các lệnh !command
+    
+    # Giao thẳng cho KVI Helper xử lý mọi tin nhắn mà không cần kiểm tra kênh
+    await bot.kvi_helper.handle_kvi_message(message)
+    
+    # Vẫn giữ lại dòng này để các lệnh !command hoạt động
     await bot.process_commands(message)
 
 @bot.event
@@ -2503,6 +2503,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
