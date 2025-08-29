@@ -34,19 +34,29 @@ class KVIHelper:
         print("✅ [KVI] Aiohttp client session đã được tạo.")
 
     def parse_karuta_embed(self, embed) -> Optional[Dict]:
-        # ... (Hàm này giữ nguyên, không cần thay đổi) ...
+        """
+        Phân tích embed của Karuta để lấy thông tin.
+        *** ĐÃ NÂNG CẤP THEO CODE THAM KHẢO CỦA BẠN ***
+        """
         description = embed.description or ""
+        
+        # Tìm tên nhân vật
         char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
         character_name = char_match.group(1).strip() if char_match else None
-        question_match = re.search(r'"([^"]*)"', description)
+    
+        # Tìm câu hỏi trong dấu ngoặc kép “...” hoặc "..."
+        question_match = re.search(r'["“]([^"”]+)["”]', description)
         question = question_match.group(1).strip() if question_match else None
-        choices = []
-        choice_lines = re.findall(r'^\d️⃣\s+(.+)$', description, re.MULTILINE)
-        for i, choice in enumerate(choice_lines, 1):
-            choices.append({"number": i, "text": choice.strip()})
+        
+        # Tìm tất cả các dòng bắt đầu bằng emoji số và lấy nội dung (Logic mới, chính xác hơn)
+        choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILILINE)
+        
+        choices = [{"number": int(emoji[0]), "text": text.strip()} for emoji, text in choice_lines]
         
         if not all([character_name, question, choices]):
+            print("❌ [PARSER] Không đủ thông tin để phân tích embed của Karuta.")
             return None
+            
         return {"character": character_name, "question": question, "choices": choices}
 
     async def analyze_with_ai(self, character: str, question: str, choices: List[Dict]) -> Optional[Dict]:
