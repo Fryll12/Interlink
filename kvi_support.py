@@ -99,32 +99,56 @@ class KVIHelper:
         embed.set_footer(text="Powered by Google Gemini")
         return embed
 
-    async def handle_kvi_message(self, message):
-        if message.author.id != KARUTA_ID or message.channel.id not in KVI_CHANNELS or not message.embeds:
-            return
+async def handle_kvi_message(self, message):
+    print("\n[DEBUG] Step 1: on_message triggered.") # Báo hiệu bot đã nhận được một tin nhắn mới
 
-        embed = message.embeds[0]
-        description = embed.description or ""
-        if "Your Affection Rating has" in description or "1️⃣" not in description:
-            return
-        
-        print(f"\n[INTERLINK KVI] Phát hiện câu hỏi KVI trong kênh {message.channel.id}")
-        
-        kvi_data = self.parse_karuta_embed(embed) # Đổi sang hàm đồng bộ
-        if not kvi_data:
-            return
-            
-        ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
-        if not ai_result:
-            return
-            
-        suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
-        try:
-            await message.channel.send(embed=suggestion_embed)
-            print(f"✅ Đã gửi gợi ý từ Google Gemini.")
-        except Exception as e:
-            print(f"❌ Lỗi khi gửi embed gợi ý: {e}")
+    if message.author.id != KARUTA_ID:
+        # Dừng lại nếu tin nhắn không phải của Karuta
+        return 
+    print("[DEBUG] Step 2: Message is from Karuta.")
 
-    async def handle_kvi_update(self, before, after):
-        # Có thể gọi lại handle_kvi_message nếu cần xử lý update
-        pass
+    if message.channel.id not in KVI_CHANNELS:
+        # Dừng lại nếu tin nhắn không ở trong kênh KVI
+        print(f"[DEBUG] ERROR: Message in wrong channel ({message.channel.id}). Expected one of {KVI_CHANNELS}")
+        return
+    print("[DEBUG] Step 3: Message is in a correct KVI channel.")
+
+    if not message.embeds:
+        # Dừng lại nếu tin nhắn không có embed
+        return
+    print("[DEBUG] Step 4: Message has embeds.")
+
+    embed = message.embeds[0]
+    description = embed.description or ""
+
+    if "Your Affection Rating has" in description:
+        # Bỏ qua tin nhắn kết quả
+        return
+    print("[DEBUG] Step 5: Message is not a result message.")
+    
+    if "1️⃣" not in description:
+        # Dừng lại nếu không phải tin nhắn câu hỏi
+        return
+    print("[DEBUG] Step 6: Message is a question embed!")
+    
+    print(f"\n[INTERLINK KVI] Phát hiện câu hỏi KVI trong kênh {message.channel.id}")
+    
+    kvi_data = self.parse_karuta_embed(embed)
+    if not kvi_data:
+        print("[DEBUG] ERROR: Failed to parse embed data.")
+        return
+    print("[DEBUG] Step 7: Embed parsed successfully.")
+        
+    ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
+    if not ai_result:
+        print("[DEBUG] ERROR: AI analysis failed or returned nothing.")
+        return
+    print("[DEBUG] Step 8: AI analysis successful.")
+        
+    suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
+    try:
+        await message.channel.send(embed=suggestion_embed)
+        print(f"✅ Đã gửi gợi ý từ Google Gemini.")
+        print("[DEBUG] Step 9: Suggestion sent successfully!")
+    except Exception as e:
+        print(f"❌ Lỗi khi gửi embed gợi ý: {e}")
