@@ -131,9 +131,11 @@ class KVIHelper:
         embed.set_footer(text="Powered by Google Gemini")
         return embed
 
-# Trong file kvi_support.py
 
     async def handle_kvi_message(self, message):
+        # DÒNG MỚI: Khai báo để sử dụng biến toàn cục
+        global kvi_sessions
+    
         # Các bước kiểm tra ban đầu
         if message.author.id != KARUTA_ID or message.channel.id not in KVI_CHANNELS or not message.embeds:
             return
