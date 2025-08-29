@@ -30,42 +30,23 @@ class KVIHelper:
             description = embed.description or ""
             print(f"[DEBUG] parse_karuta_embed: Nội dung embed (500 ký tự đầu):\n{description[:500]}...")
 
-            # Tìm tên nhân vật - thử nhiều cách khác nhau
-            character_name = None
-            
-            # Cách 1: Tìm trong tiêu đề embed
-            if embed.title:
-                title_match = re.search(r'\*\*([^\*]+)\*\*', embed.title)
-                if title_match:
-                    character_name = title_match.group(1).strip()
-                    print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong tiêu đề: {character_name}")
-            
-            # Cách 2: Tìm trong mô tả
-            if not character_name:
-                char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
-                if char_match:
-                    character_name = char_match.group(1).strip()
-                    print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong mô tả: {character_name}")
-            
-            # Cách 3: Tìm tên trong ngoặc kép đầu tiên
-            if not character_name:
-                name_in_quotes = re.search(r'["""]([^"""]+)["""]', description)
-                if name_in_quotes:
-                    character_name = name_in_quotes.group(1).strip()
-                    print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong ngoặc kép: {character_name}")
+            # Tìm tên nhân vật
+            char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
+            character_name = char_match.group(1).strip() if char_match else None
+            print(f"[DEBUG] parse_karuta_embed: Tên nhân vật = {character_name}")
 
-            # Tìm câu hỏi trong dấu ngoặc kép (hỗ trợ cả " và " ")
-            question_match = re.search(r'["""]([^"""]+)["""]', description)
+            # Tìm câu hỏi trong dấu ngoặc kép (hỗ trợ cả " và “ ”)
+            question_match = re.search(r'["“]([^"”]+)["”]', description)
             question = question_match.group(1).strip() if question_match else None
             print(f"[DEBUG] parse_karuta_embed: Câu hỏi = {question}")
 
-            # Tìm tất cả các dòng bắt đầu bằng emoji 1-5
+            # Tìm tất cả các dòng bắt đầu bằng emoji 1️⃣-5️⃣
             choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILINE)
             print(f"[DEBUG] parse_karuta_embed: Số dòng lựa chọn tìm thấy: {len(choice_lines)}")
 
             # Mapping emoji -> số
             emoji_to_number = {
-                '1️⃣': 1, '2️⃣': 2, '3️⃣': 3, '4️⃣': 4, '5️⃣: 5
+                '1️⃣': 1, '2️⃣': 2, '3️⃣': 3, '4️⃣': 4, '5️⃣': 5
             }
 
             choices = []
@@ -176,10 +157,7 @@ class KVIHelper:
         if message.author.id != KARUTA_ID:
             return
 
-        # Chờ một chút để đảm bảo embed đã được thêm vào
-        await asyncio.sleep(0.5)  # Chờ 0.5 giây
-        
-        # Kiểm tra có embed không
+        # Kiểm tra có embed không - KHÔNG TẢI LẠI TIN NHẮN
         if not message.embeds:
             print("[DEBUG] Step 2: THẤT BẠI - Tin nhắn không có embed")
             return
