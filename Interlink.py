@@ -13,7 +13,6 @@ from urllib.parse import urlparse
 import time
 from PIL import Image, ImageDraw
 import io
-import io
 from kvi_support import KVIHelper, KVI_CHANNELS
 
 # Try to import psycopg2, fallback to JSONBin if not available
@@ -375,7 +374,6 @@ def delete_user_from_json(user_id: str):
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
 bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
 bot.kvi_helper = KVIHelper(bot)
 
@@ -2496,6 +2494,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
