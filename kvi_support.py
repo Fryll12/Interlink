@@ -1,4 +1,4 @@
-# File: kvi_support.py - Clean version không lỗi
+# File: kvi_support.py - Fixed version
 import discord
 import re
 import os
@@ -114,11 +114,33 @@ class KVIHelper:
         
         analysis = ai_result.get('analysis', '')[:80]
         if analysis:
-            embed.add_field(name="🔍 Phân tích", value=analysis, inline=False)
+            embed.add_field(name="📝 Phân tích", value=analysis, inline=False)
         
         embed.set_footer(text="🤖 Gemini AI")
         return embed
 
+    def is_kvi_message(self, embed) -> bool:
+        """Kiểm tra xem có phải tin nhắn KVI không"""
+        try:
+            description = embed.description or ""
+            
+            # Kiểm tra có "Visit Character" trong embed
+            if "**Visit Character **" not in description:
+                return False
+            
+            # Kiểm tra có emoji lựa chọn
+            if not re.search(r'(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)', description):
+                return False
+                
+            # Kiểm tra có câu hỏi trong dấu ngoặc kép
+            if not re.search(r'[""]([^""]+)[""]', description):
+                return False
+                
+            return True
+            
+        except Exception as e:
+            print(f"❌ [KVI_CHECK] Lỗi: {e}")
+            return False
 
     async def handle_kvi_message(self, message):
         print(f"\n[DEBUG] Step 1: Bot nhìn thấy tin nhắn từ '{message.author.name}'.")
@@ -135,15 +157,16 @@ class KVIHelper:
             print(f"❌ [DEBUG] Lỗi ở Step 1.5 (tải lại tin nhắn): {e}")
             return
     
-        # Bây giờ, tiếp tục xử lý
+        # Kiểm tra có embed không
         if not message.embeds:
             return 
         print("[DEBUG] Step 2: Tin nhắn là của Karuta và có embed.")
         
         embed = message.embeds[0]
-        description = embed.description or ""
         
-        if "Your Affection Rating has" in description or "1️⃣" not in description:
+        # Kiểm tra có phải tin nhắn KVI không
+        if not self.is_kvi_message(embed):
+            print("[DEBUG] Thoát: Không phải tin nhắn KVI (không có 'Visit Character' hoặc thiếu thành phần cần thiết).")
             return
         print("[DEBUG] Step 3: Tin nhắn là một câu hỏi KVI hợp lệ.")
     
@@ -151,14 +174,16 @@ class KVIHelper:
         if not kvi_data:
             print("[DEBUG] Thoát: Phân tích embed thất bại.")
             return
-        print("[DEBUG] Step 4: Phân tích embed thành công.")
+        print(f"[DEBUG] Step 4: Phân tích embed thành công - Character: {kvi_data['character']}")
     
+        # Kiểm tra trùng lặp
         session = self.kvi_sessions.get(message.channel.id, {})
         if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
             print("[DEBUG] Thoát: Bỏ qua sự kiện trùng lặp cho cùng một câu hỏi.")
             return
         print("[DEBUG] Step 5: Phát hiện câu hỏi mới, cập nhật session.")
     
+        # Cập nhật session
         self.kvi_sessions[message.channel.id] = {
             "message_id": message.id,
             "last_question": kvi_data["question"]
@@ -168,3 +193,13 @@ class KVIHelper:
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
             print("[DEBUG] Thoát: AI phân tích thất bại hoặc không trả về kết quả.")
+            return
+        
+        print("[DEBUG] Step 7: AI phân tích thành công, tạo embed gợi ý...")
+        suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
+        
+        try:
+            await message.channel.send(embed=suggestion_embed)
+            print("[DEBUG] Step 8: ✅ Gửi gợi ý thành công!")
+        except Exception as e:
+            print(f"❌ [DEBUG] Step 8: Lỗi gửi tin nhắn: {e}")
