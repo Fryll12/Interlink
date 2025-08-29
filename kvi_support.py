@@ -131,54 +131,46 @@ class KVIHelper:
         embed.set_footer(text="Powered by Google Gemini")
         return embed
 
+# Trong file kvi_support.py
+
     async def handle_kvi_message(self, message):
-        # Dòng này sẽ in ra mỗi khi có tin nhắn mới trong server
-        print(f"\n[DEBUG] Step 1: Bot nhìn thấy tin nhắn từ '{message.author.name}' trong kênh #{message.channel.name}.")
-    
-        # Kiểm tra xem có phải tin nhắn của Karuta không
-        if message.author.id != KARUTA_ID:
-            return 
-        print("[DEBUG] Step 2: Tin nhắn này là của Karuta.")
-    
-        # Kiểm tra xem tin nhắn có ở trong kênh KVI đã cài đặt không
-        if message.channel.id not in KVI_CHANNELS:
-            print(f"[DEBUG] LỖI: Tin nhắn ở sai kênh ({message.channel.id}). Các kênh hợp lệ: {KVI_CHANNELS}")
+        # Các bước kiểm tra ban đầu
+        if message.author.id != KARUTA_ID or message.channel.id not in KVI_CHANNELS or not message.embeds:
             return
-        print("[DEBUG] Step 3: Tin nhắn ở trong kênh KVI hợp lệ.")
-    
-        # Kiểm tra xem tin nhắn có chứa embed không
-        if not message.embeds:
-            return
-        print("[DEBUG] Step 4: Tin nhắn có chứa embed.")
     
         embed = message.embeds[0]
         description = embed.description or ""
+        if "Your Affection Rating has" in description or "1️⃣" not in description:
+            return
     
-        # Bỏ qua nếu là tin nhắn kết quả
-        if "Your Affection Rating has" in description:
-            return
-        print("[DEBUG] Step 5: Đây không phải là tin nhắn kết quả.")
-        
-        # Bỏ qua nếu không phải tin nhắn câu hỏi
-        if "1️⃣" not in description:
-            return
-        print("[DEBUG] Step 6: Đây là tin nhắn câu hỏi KVI!")
-        
+        # Phân tích embed để lấy dữ liệu
         kvi_data = self.parse_karuta_embed(embed)
         if not kvi_data:
-            print("[DEBUG] LỖI: Phân tích embed thất bại.")
             return
-        print("[DEBUG] Step 7: Phân tích embed thành công.")
+    
+        # --- LOGIC XỬ LÝ PHIÊN MỚI (ĐÃ NÂNG CẤP) ---
+        # Lấy session của kênh này
+        session = kvi_sessions.get(message.channel.id, {})
+        
+        # Nếu tin nhắn này có cùng ID VÀ cùng nội dung câu hỏi, thì bỏ qua
+        if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
+            return # Đây là một lần edit nhỏ (ví dụ có người react), không phải câu hỏi mới
+    
+        # Nếu không, cập nhật session với câu hỏi mới và tiếp tục
+        print(f"\n[INTERLINK KVI] Phát hiện câu hỏi KVI mới trong kênh {message.channel.id}")
+        kvi_sessions[message.channel.id] = {
+            "message_id": message.id,
+            "last_question": kvi_data["question"]
+        }
+        # --- KẾT THÚC LOGIC MỚI ---
             
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
-            print("[DEBUG] LỖI: Phân tích AI thất bại hoặc không trả về kết quả.")
             return
-        print("[DEBUG] Step 8: Phân tích AI thành công.")
             
         suggestion_embed = await self.create_suggestion_embed(kvi_data, ai_result)
         try:
             await message.channel.send(embed=suggestion_embed)
-            print("✅✅✅ [DEBUG] Step 9: Gửi gợi ý thành công! ✅✅✅")
+            print(f"✅ Đã gửi gợi ý từ Google Gemini.")
         except Exception as e:
-            print(f"❌ [DEBUG] LỖI CUỐI CÙNG: Không thể gửi tin nhắn gợi ý. Lỗi quyền: {e}")
+            print(f"❌ Lỗi khi gửi embed gợi ý: {e}")
