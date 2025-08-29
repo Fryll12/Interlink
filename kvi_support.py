@@ -26,20 +26,45 @@ class KVIHelper:
             print("✅ [KVI] HTTP session đã sẵn sàng.")
 
     def parse_karuta_embed(self, embed) -> Optional[Dict]:
-        """Phân tích embed của Karuta để lấy thông tin"""
+        """Phân tích embed của Karuta để lấy thông tin (đã cải tiến)"""
         try:
             description = embed.description or ""
+            title = embed.title or ""
+            
+            print(f"[DEBUG] parse_karuta_embed: Tiêu đề embed: {title}")
+            print(f"[DEBUG] parse_karuta_embed: Đoạn mô tả (500 ký tự đầu):\n{description[:500]}...")
 
-            # Tìm tên nhân vật
-            char_match = re.search(r"Character · \*\*([^\*]+)\*\*", description)
-            character_name = char_match.group(1).strip() if char_match else None
+            # Tìm tên nhân vật - Ưu tiên từ tiêu đề trước
+            character_name = None
+            
+            # Cách 1: Tìm trong tiêu đề (dạng "**Tên Nhân Vật**")
+            title_match = re.search(r'\*\*([^\*]+)\*\*', title)
+            if title_match:
+                character_name = title_match.group(1).strip()
+                print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong tiêu đề: {character_name}")
+            
+            # Cách 2: Tìm trong mô tả (dạng "Character · **Tên**")
+            if not character_name:
+                char_match = re.search(r'Character[^\*]*\*\*([^\*]+)\*\*', description, re.IGNORECASE)
+                if char_match:
+                    character_name = char_match.group(1).strip()
+                    print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong mô tả: {character_name}")
+            
+            # Cách 3: Tên đầu tiên trong ngoặc kép
+            if not character_name:
+                name_in_quotes = re.search(r'"([^"]+)"', description)
+                if name_in_quotes:
+                    character_name = name_in_quotes.group(1).strip()
+                    print(f"[DEBUG] parse_karuta_embed: Tìm thấy tên nhân vật trong ngoặc kép: {character_name}")
 
             # Tìm câu hỏi trong dấu ngoặc kép
             question_match = re.search(r'"([^"]+)"', description)
             question = question_match.group(1).strip() if question_match else None
+            print(f"[DEBUG] parse_karuta_embed: Câu hỏi tìm thấy: {question}")
 
-            # Tìm tất cả các dòng bắt đầu bằng emoji 1️⃣-5️⃣ và lấy nội dung
+            # Tìm tất cả các dòng bắt đầu bằng emoji 1️⃣-5️⃣
             choice_lines = re.findall(r'^(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)\s+(.+)$', description, re.MULTILINE)
+            print(f"[DEBUG] parse_karuta_embed: Số dòng lựa chọn tìm thấy: {len(choice_lines)}")
 
             # Mapping emoji -> số
             emoji_to_number = {
@@ -54,11 +79,23 @@ class KVIHelper:
                         "text": text.strip()
                     })
 
-            # Kiểm tra dữ liệu
-            if not character_name or not question or len(choices) < 2:
-                print(f"[PARSER] Thiếu dữ liệu - Character: {character_name}, Question: {bool(question)}, Choices: {len(choices)}")
+            print(f"[DEBUG] parse_karuta_embed: Số lựa chọn hợp lệ: {len(choices)}")
+
+            # Kiểm tra dữ liệu tối thiểu
+            if not question:
+                print("[DEBUG] parse_karuta_embed: THẤT BẠI - Không tìm thấy câu hỏi")
+                return None
+                
+            if len(choices) < 2:
+                print(f"[DEBUG] parse_karuta_embed: THẤT BẠI - Chỉ có {len(choices)} lựa chọn (cần >=2)")
                 return None
 
+            # Nếu không tìm thấy tên nhân vật, sử dụng "Unknown Character"
+            if not character_name:
+                character_name = "Unknown Character"
+                print("[DEBUG] parse_karuta_embed: Sử dụng tên mặc định: Unknown Character")
+
+            print("[DEBUG] parse_karuta_embed: THÀNH CÔNG - Dữ liệu đầy đủ")
             return {"character": character_name, "question": question, "choices": choices}
 
         except Exception as e:
@@ -137,22 +174,22 @@ class KVIHelper:
         return embed
 
     def is_kvi_message(self, embed) -> bool:
-        """Kiểm tra xem có phải tin nhắn KVI không"""
+        """Kiểm tra xem có phải tin nhắn KVI không (đã đơn giản hóa)"""
         try:
             description = embed.description or ""
+            print(f"[DEBUG] is_kvi_message: Kiểm tra nội dung embed...")
 
-            # Kiểm tra có "Visit Character" trong embed
-            if "**Visit Character **" not in description:
-                return False
-
-            # Kiểm tra có emoji lựa chọn
+            # Điều kiện 1: Phải có emoji lựa chọn
             if not re.search(r'(1️⃣|2️⃣|3️⃣|4️⃣|5️⃣)', description):
+                print("[DEBUG] is_kvi_message: THẤT BẠI - Không tìm thấy emoji lựa chọn")
                 return False
 
-            # Kiểm tra có câu hỏi trong dấu ngoặc kép
+            # Điều kiện 2: Phải có câu hỏi trong dấu ngoặc kép
             if not re.search(r'"([^"]+)"', description):
+                print("[DEBUG] is_kvi_message: THẤT BẠI - Không tìm thấy câu hỏi trong ngoặc kép")
                 return False
 
+            print("[DEBUG] is_kvi_message: THÀNH CÔNG - Tất cả điều kiện đạt")
             return True
 
         except Exception as e:
@@ -175,30 +212,31 @@ class KVIHelper:
 
         # Kiểm tra có embed không
         if not message.embeds:
+            print("[DEBUG] Step 2: THẤT BẠI - Tin nhắn không có embed")
             return
-        print("[DEBUG] Step 2: Tin nhắn Karuta có embed.")
+        print(f"[DEBUG] Step 2: THÀNH CÔNG - Tin nhắn có {len(message.embeds)} embed")
 
         embed = message.embeds[0]
 
         # Kiểm tra có phải KVI không
         if not self.is_kvi_message(embed):
-            print("[DEBUG] Thoát: Không phải tin nhắn KVI.")
+            print("[DEBUG] Step 3: THẤT BẠI - Không phải tin nhắn KVI")
             return
-        print("[DEBUG] Step 3: Đây là câu hỏi KVI hợp lệ.")
+        print("[DEBUG] Step 3: THÀNH CÔNG - Đây là câu hỏi KVI hợp lệ")
 
         # Phân tích embed
         kvi_data = self.parse_karuta_embed(embed)
         if not kvi_data:
-            print("[DEBUG] Thoát: Phân tích embed thất bại.")
+            print("[DEBUG] Step 4: THẤT BẠI - Phân tích embed thất bại")
             return
-        print(f"[DEBUG] Step 4: Phân tích embed thành công - Character: {kvi_data['character']}")
+        print(f"[DEBUG] Step 4: THÀNH CÔNG - Phân tích embed thành công - Character: {kvi_data['character']}")
 
         # Kiểm tra trùng lặp
         session = self.kvi_sessions.get(message.channel.id, {})
         if session.get("message_id") == message.id and session.get("last_question") == kvi_data["question"]:
-            print("[DEBUG] Thoát: Bỏ qua sự kiện trùng lặp.")
+            print("[DEBUG] Step 5: THÀNH CÔNG - Bỏ qua sự kiện trùng lặp")
             return
-        print("[DEBUG] Step 5: Cập nhật session.")
+        print("[DEBUG] Step 5: Cập nhật session")
 
         self.kvi_sessions[message.channel.id] = {
             "message_id": message.id,
@@ -209,7 +247,7 @@ class KVIHelper:
         print("[DEBUG] Step 6: Gọi AI để phân tích...")
         ai_result = await self.analyze_with_ai(kvi_data["character"], kvi_data["question"], kvi_data["choices"])
         if not ai_result:
-            print("[DEBUG] Thoát: AI phân tích thất bại.")
+            print("[DEBUG] Step 6: THẤT BẠI - AI phân tích thất bại")
             return
 
         # Tạo embed gợi ý
@@ -218,6 +256,6 @@ class KVIHelper:
 
         try:
             await message.channel.send(embed=suggestion_embed)
-            print("[DEBUG] Step 8: ✅ Gửi gợi ý thành công!")
+            print("[DEBUG] Step 8: THÀNH CÔNG - Gửi gợi ý thành công!")
         except Exception as e:
-            print(f"❌ [DEBUG] Step 8: Lỗi gửi tin nhắn: {e}")
+            print(f"❌ [DEBUG] Step 8: THẤT BẠI - Lỗi gửi tin nhắn: {e}")
