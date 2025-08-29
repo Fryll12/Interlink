@@ -65,7 +65,7 @@ class KVIHelper:
         prompt = (
             f"Phân tích tính cách '{character}' và trả lời câu hỏi: '{question}'\n"
             f"Lựa chọn:\n{choices_text}\n"
-            f"JSON: {\"analysis\":\"phân tích ngắn\",\"percentages\":[{\"choice\":1,\"percentage\":50}]}"
+            f'JSON: {{"analysis":"phân tích ngắn","percentages":[{{"choice":1,"percentage":50}}]}}'
         )
 
         payload = {"contents": [{"parts": [{"text": prompt}]}]}
