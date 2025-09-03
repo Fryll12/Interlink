@@ -13,7 +13,6 @@ from urllib.parse import urlparse
 import time
 from PIL import Image, ImageDraw
 import io
-from kvi_support import KVIHelper
 
 # Try to import psycopg2, fallback to JSONBin if not available
 try:
@@ -375,7 +374,6 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents, owner_id=1386710352426959011, help_command=None)
-bot.kvi_helper = KVIHelper(bot)
 
 # --- FLASK WEB SERVER SETUP ---
 app = Flask(__name__)
@@ -972,8 +970,6 @@ async def on_ready():
     print(f'💾 Database: {db_status}')
     print(f'🌐 JSONBin.io: {jsonbin_status}')
     
-    # Khởi tạo KVI Helper một cách an toàn
-    await bot.kvi_helper.async_setup()
     
     try:
         synced = await bot.tree.sync()
@@ -987,9 +983,6 @@ async def on_message(message):
     if message.author == bot.user:
         return
     
-    # Giao thẳng cho KVI Helper xử lý mọi tin nhắn
-    await bot.kvi_helper.handle_kvi_message(message)
-    
     # Xử lý các lệnh !command
     await bot.process_commands(message)
 
@@ -998,8 +991,6 @@ async def on_message_edit(before, after):
     """Xử lý khi tin nhắn được CHỈNH SỬA."""
     if after.author == bot.user:
         return
-    # Giao cho KVI Helper xử lý y hệt như tin nhắn mới
-    await bot.kvi_helper.handle_kvi_message(after)
     
 # --- DISCORD BOT COMMANDS ---
 @bot.command(name='ping', help='Kiểm tra độ trễ kết nối của bot.')
@@ -2501,6 +2492,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
