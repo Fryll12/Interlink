@@ -155,18 +155,34 @@ class TrackByNameModal(discord.ui.Modal):
 
 
 class TrackByNameView(discord.ui.View):
-    """View chứa dropdown để chọn server."""
+    """View chứa dropdown để chọn server. (ĐÃ SỬA LỖI)"""
     def __init__(self, author_id: int, bot: commands.Bot):
         super().__init__(timeout=300)
         self.author_id = author_id
-        
+
+        # Lấy danh sách server mà người dùng là thành viên
         server_options = [
             discord.SelectOption(label=guild.name, value=str(guild.id), emoji="🖥️")
             for guild in bot.guilds if guild.get_member(self.author_id)
         ]
-        
+
+        # Chỉ tạo menu nếu có ít nhất một server để chọn
         if server_options:
-            self.add_item(discord.ui.Select(placeholder="Bước 1: Chọn server...", options=server_options[:25]))
+            # Tạo một đối tượng Select menu
+            select_menu = discord.ui.Select(
+                placeholder="Bước 1: Chọn server...", 
+                options=server_options[:25] # Giới hạn 25 lựa chọn mỗi menu
+            )
+
+            # Gán hàm callback cho menu này
+            select_menu.callback = self.server_select_callback
+
+            # Thêm menu vào view
+            self.add_item(select_menu)
+        else:
+            # Nếu không có server nào, ta có thể thêm một item thông báo (tùy chọn)
+            # Hoặc để trống, view sẽ không có gì để tương tác
+            pass
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.author_id:
@@ -174,9 +190,12 @@ class TrackByNameView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.select()
-    async def server_select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        selected_guild_id = int(select.values[0])
+    # Đây là hàm callback, không cần decorator @discord.ui.select() nữa
+    async def server_select_callback(self, interaction: discord.Interaction):
+        # Lấy đối tượng Select từ tương tác
+        select_menu = interaction.data['values'][0]
+        selected_guild_id = int(select_menu)
+        
         guild = interaction.client.get_guild(selected_guild_id)
         if guild:
             await interaction.response.send_modal(TrackByNameModal(guild=guild))
