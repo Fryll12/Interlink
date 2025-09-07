@@ -262,6 +262,37 @@ class ChannelTracker(commands.Cog):
         view = TrackInitialView(author_id=ctx.author.id, bot=self.bot)
         await ctx.send(embed=embed, view=view)
 
+    @commands.command(name='untrack', help='Ngừng theo dõi hoạt động của một kênh.')
+    async def untrack(self, ctx: commands.Context, channel: discord.TextChannel = None):
+        # Kiểm tra xem người dùng có cung cấp kênh không.
+        if channel is None:
+            await ctx.send("Vui lòng gắn thẻ kênh bạn muốn ngừng theo dõi. Ví dụ: `!untrack #tên-kênh`", ephemeral=True)
+            return
+    
+        tracked_channels_data = await self.bot.loop.run_in_executor(None, db_get_all_tracked)
+        tracked_channel = next((tc for tc in tracked_channels_data if tc[0] == channel.id), None)
+        
+        if not tracked_channel:
+            await ctx.send(f"Kênh {channel.mention} hiện không được theo dõi.", ephemeral=True)
+            return
+            
+        # Chỉ cho phép người đã thêm kênh hoặc quản trị viên dừng theo dõi.
+        user_id_who_added = tracked_channel[2]
+        if user_id_who_added != ctx.author.id and not ctx.author.guild_permissions.manage_channels:
+            await ctx.send("Bạn không có quyền ngừng theo dõi kênh này.", ephemeral=True)
+            return
+    
+        # Xóa kênh khỏi database.
+        await self.bot.loop.run_in_executor(None, db_remove_channel, channel.id)
+        
+        embed = discord.Embed(
+            title="✅ Dừng theo dõi",
+            description=f"Đã ngừng theo dõi kênh {channel.mention}.",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=embed)
+    
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(ChannelTracker(bot))
 
