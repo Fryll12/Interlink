@@ -117,91 +117,52 @@ class TrackByIDModal(discord.ui.Modal, title="Theo dõi bằng ID Kênh"):
         embed.set_footer(text=f"Cảnh báo sẽ được gửi về kênh này nếu kênh không hoạt động.")
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+class TrackAllByNameModal(discord.ui.Modal, title="Theo dõi kênh trên mọi Server"):
+    """Modal để người dùng nhập tên kênh và bot sẽ tìm trên tất cả server."""
+    channel_name_input = discord.ui.TextInput(
+        label="Tên kênh cần theo dõi (không có #)",
+        placeholder="Ví dụ: general, announcements, v.v.",
+        required=True
+    )
 
-class TrackByNameModal(discord.ui.Modal):
-    """Modal để người dùng nhập tên kênh sau khi đã chọn server."""
-    def __init__(self, guild: discord.Guild):
-        super().__init__(title=f"Tìm kênh trong '{guild.name}'")
-        self.guild = guild
-
-        self.channel_name_input = discord.ui.TextInput(
-            label="Tên kênh cần theo dõi (không có #)",
-            placeholder="Ví dụ: general, announcements, v.v.",
-            required=True
-        )
-        self.add_item(self.channel_name_input)
-    
     async def on_submit(self, interaction: discord.Interaction):
+        # Phản hồi tạm thời để tránh lỗi "interaction failed"
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
         bot = interaction.client
+        # Chuẩn hóa tên kênh để tìm kiếm dễ hơn
         channel_name = self.channel_name_input.value.strip().lower().replace('-', ' ')
-        
-        found_channel = discord.utils.get(self.guild.text_channels, name=channel_name)
-        
-        if not found_channel:
-            return await interaction.response.send_message(f"Không tìm thấy kênh nào có tên `{self.channel_name_input.value}` trong server **{self.guild.name}**.", ephemeral=True)
 
-        # Thêm kênh vào database, lưu kênh hiện tại để gửi thông báo
-        await bot.loop.run_in_executor(
-            None, db_add_channel, found_channel.id, found_channel.guild.id, interaction.user.id, interaction.channel_id
-        )
+        found_channels = []
+        # Lặp qua tất cả các server mà bot đang ở trong
+        for guild in bot.guilds:
+            # Chỉ tìm trong các server mà người dùng lệnh cũng có mặt
+            if guild.get_member(interaction.user.id):
+                target_channel = discord.utils.get(guild.text_channels, name=channel_name)
+                if target_channel:
+                    found_channels.append(target_channel)
 
-        embed = discord.Embed(
-            title="🛰️ Bắt đầu theo dõi",
-            description=f"Thành công! Bot sẽ theo dõi kênh {found_channel.mention} trong server **{self.guild.name}**.",
-            color=discord.Color.green()
-        )
-        embed.set_footer(text=f"Cảnh báo sẽ được gửi về kênh này nếu kênh không hoạt động.")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # Nếu không tìm thấy kênh nào
+        if not found_channels:
+            await interaction.followup.send(f"Không tìm thấy kênh nào có tên `{self.channel_name_input.value}` trong tất cả các server bạn có mặt.", ephemeral=True)
+            return
 
-
-class TrackByNameView(discord.ui.View):
-    """View chứa dropdown để chọn server. (ĐÃ SỬA LỖI)"""
-    def __init__(self, author_id: int, bot: commands.Bot):
-        super().__init__(timeout=300)
-        self.author_id = author_id
-
-        # Lấy danh sách server mà người dùng là thành viên
-        server_options = [
-            discord.SelectOption(label=guild.name, value=str(guild.id), emoji="🖥️")
-            for guild in bot.guilds if guild.get_member(self.author_id)
-        ]
-
-        # Chỉ tạo menu nếu có ít nhất một server để chọn
-        if server_options:
-            # Tạo một đối tượng Select menu
-            select_menu = discord.ui.Select(
-                placeholder="Bước 1: Chọn server...", 
-                options=server_options[:25] # Giới hạn 25 lựa chọn mỗi menu
+        # Nếu tìm thấy, thêm tất cả vào database
+        for channel in found_channels:
+            await bot.loop.run_in_executor(
+                None, db_add_channel, channel.id, channel.guild.id, interaction.user.id, interaction.channel_id
             )
 
-            # Gán hàm callback cho menu này
-            select_menu.callback = self.server_select_callback
+        # Tạo thông báo kết quả
+        server_list_str = "\n".join([f"• **{c.guild.name}**" for c in found_channels])
+        embed = discord.Embed(
+            title="🛰️ Bắt đầu theo dõi hàng loạt",
+            description=f"Đã tìm thấy và bắt đầu theo dõi **{len(found_channels)}** kênh có tên `{self.channel_name_input.value}` tại các server:\n{server_list_str}",
+            color=discord.Color.green()
+        )
+        embed.set_footer(text="Cảnh báo sẽ được gửi về kênh này nếu có kênh không hoạt động.")
 
-            # Thêm menu vào view
-            self.add_item(select_menu)
-        else:
-            # Nếu không có server nào, ta có thể thêm một item thông báo (tùy chọn)
-            # Hoặc để trống, view sẽ không có gì để tương tác
-            pass
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.author_id:
-            await interaction.response.send_message("Bạn không phải người dùng lệnh này!", ephemeral=True)
-            return False
-        return True
-
-    # Đây là hàm callback, không cần decorator @discord.ui.select() nữa
-    async def server_select_callback(self, interaction: discord.Interaction):
-        # Lấy đối tượng Select từ tương tác
-        select_menu = interaction.data['values'][0]
-        selected_guild_id = int(select_menu)
-        
-        guild = interaction.client.get_guild(selected_guild_id)
-        if guild:
-            await interaction.response.send_modal(TrackByNameModal(guild=guild))
-        else:
-            await interaction.response.send_message("Không tìm thấy server này.", ephemeral=True)
-
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 class TrackInitialView(discord.ui.View):
     """View ban đầu với hai lựa chọn: theo dõi bằng ID hoặc Tên."""
@@ -222,13 +183,8 @@ class TrackInitialView(discord.ui.View):
 
     @discord.ui.button(label="Theo dõi bằng Tên Kênh", style=discord.ButtonStyle.secondary, emoji="📝")
     async def track_by_name(self, interaction: discord.Interaction, button: discord.ui.Button):
-        view = TrackByNameView(author_id=self.author_id, bot=self.bot)
-        embed = discord.Embed(
-            title="Theo dõi bằng Tên Kênh",
-            description="Sử dụng menu bên dưới để chọn server chứa kênh bạn muốn theo dõi.",
-            color=discord.Color.blue()
-        )
-        await interaction.response.edit_message(embed=embed, view=view)
+        # THAY ĐỔI Ở ĐÂY: Mở trực tiếp Modal tìm kiếm thay vì View chọn server
+        await interaction.response.send_modal(TrackAllByNameModal())
 
 
 # --- Cog chính ---
