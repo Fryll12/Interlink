@@ -602,8 +602,8 @@ class DeployView(discord.ui.View):
         self.current_guild_page = 0
         self.current_agent_page = 0
         
-        # Lưu trữ lựa chọn của người dùng
-        self.selected_guild = None
+        # *** THAY ĐỔI 1: Lưu trữ nhiều ID server thay vì một đối tượng guild duy nhất ***
+        self.selected_guild_ids = set()
         self.selected_user_ids = set()
 
         # Gọi hàm để xây dựng giao diện ban đầu
@@ -615,26 +615,45 @@ class DeployView(discord.ui.View):
 
         # --- Tạo menu chọn Server ---
         guild_options = [
-            discord.SelectOption(label=g.name, value=str(g.id), default=(self.selected_guild and g.id == self.selected_guild.id)) 
+            discord.SelectOption(
+                label=g.name, 
+                value=str(g.id), 
+                # *** THAY ĐỔI 2: Đánh dấu các server đã được chọn trong set ***
+                default=(g.id in self.selected_guild_ids)
+            ) 
             for g in self.guild_pages[self.current_guild_page]
         ]
         guild_placeholder = f"Bước 1: Chọn Server (Trang {self.current_guild_page + 1}/{len(self.guild_pages)})"
-        guild_select = discord.ui.Select(placeholder=guild_placeholder, options=guild_options, row=0)
+        # *** THAY ĐỔI 3: Cho phép chọn nhiều server (min_values=0, max_values=...) ***
+        guild_select = discord.ui.Select(
+            placeholder=guild_placeholder, 
+            min_values=0, 
+            max_values=len(guild_options), 
+            options=guild_options, 
+            row=0
+        )
         
+        # *** THAY ĐỔI 4: Cập nhật callback để xử lý nhiều lựa chọn server ***
         async def guild_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
-            guild_id = int(interaction.data["values"][0])
-            self.selected_guild = bot.get_guild(guild_id)
-            await interaction.response.send_message(f"✅ Đã chọn server: **{self.selected_guild.name}**", ephemeral=True)
-            # Cập nhật lại view để hiển thị lựa chọn mặc định
+            
+            # Xóa các lựa chọn cũ từ trang này để không bị trùng lặp
+            ids_on_this_page = {int(opt.value) for opt in guild_options}
+            self.selected_guild_ids.difference_update(ids_on_this_page)
+            
+            # Thêm các lựa chọn mới
+            for gid in interaction.data["values"]:
+                self.selected_guild_ids.add(int(gid))
+                
+            # Cập nhật lại view để hiển thị đúng các lựa chọn
             self.update_view()
             await interaction.message.edit(view=self)
+            await interaction.response.send_message(f"✅ Cập nhật! Đã chọn **{len(self.selected_guild_ids)}** server.", ephemeral=True)
 
         guild_select.callback = guild_callback
         self.add_item(guild_select)
 
         # --- Tạo các nút điều hướng cho Server ---
-        # Chỉ thêm nút nếu có nhiều hơn 1 trang
         if len(self.guild_pages) > 1:
             prev_guild_button = discord.ui.Button(label="◀️ Server Trước", style=discord.ButtonStyle.secondary, row=1, disabled=(self.current_guild_page == 0))
             next_guild_button = discord.ui.Button(label="Server Tiếp ▶️", style=discord.ButtonStyle.secondary, row=1, disabled=(self.current_guild_page >= len(self.guild_pages) - 1))
@@ -661,7 +680,7 @@ class DeployView(discord.ui.View):
             discord.SelectOption(
                 label=str(agent.get('username', agent.get('id'))), 
                 value=str(agent.get('id')),
-                default=(int(agent.get('id')) in self.selected_user_ids) # Đánh dấu các agent đã chọn
+                default=(int(agent.get('id')) in self.selected_user_ids)
             ) for agent in self.agent_pages[self.current_agent_page]
         ]
         agent_placeholder = f"Bước 2: Chọn Điệp viên (Trang {self.current_agent_page + 1}/{len(self.agent_pages)})"
@@ -670,24 +689,20 @@ class DeployView(discord.ui.View):
         async def agent_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
             
-            # Xóa các lựa chọn cũ từ trang này để không bị trùng lặp khi người dùng bỏ chọn
             ids_on_this_page = {int(opt.value) for opt in agent_options}
             self.selected_user_ids.difference_update(ids_on_this_page)
             
-            # Thêm các lựa chọn mới
             for uid in interaction.data["values"]:
                 self.selected_user_ids.add(int(uid))
                 
-            # Cập nhật lại view để hiển thị đúng các lựa chọn
             self.update_view()
-            await interaction.response.edit_message(view=self)
+            await interaction.message.edit(view=self)
             await interaction.followup.send(f"✅ Cập nhật! Đã chọn **{len(self.selected_user_ids)}** điệp viên.", ephemeral=True)
             
         agent_select.callback = agent_callback
         self.add_item(agent_select)
         
         # --- Tạo các nút điều hướng cho Điệp viên ---
-        # Chỉ thêm nút nếu có nhiều hơn 1 trang
         if len(self.agent_pages) > 1:
             prev_agent_button = discord.ui.Button(label="◀️ Điệp viên Trước", style=discord.ButtonStyle.secondary, row=3, disabled=(self.current_agent_page == 0))
             next_agent_button = discord.ui.Button(label="Điệp viên Tiếp ▶️", style=discord.ButtonStyle.secondary, row=3, disabled=(self.current_agent_page >= len(self.agent_pages) - 1))
@@ -710,8 +725,17 @@ class DeployView(discord.ui.View):
             self.add_item(next_agent_button)
 
         # --- Nút hành động cuối cùng ---
-        deploy_button = discord.ui.Button(label=f"Triển Khai ({len(self.selected_user_ids)} điệp viên)", style=discord.ButtonStyle.danger, emoji="🚀", row=4, disabled=(not self.selected_guild or not self.selected_user_ids))
+        # *** THAY ĐỔI 5: Cập nhật label và điều kiện disabled của nút ***
+        button_label = f"Triển Khai ({len(self.selected_user_ids)} agents -> {len(self.selected_guild_ids)} servers)"
+        deploy_button = discord.ui.Button(
+            label=button_label, 
+            style=discord.ButtonStyle.danger, 
+            emoji="🚀", 
+            row=4, 
+            disabled=(not self.selected_guild_ids or not self.selected_user_ids)
+        )
         
+        # *** THAY ĐỔI 6: Cập nhật logic xử lý triển khai cho nhiều server ***
         async def deploy_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
             
@@ -719,32 +743,48 @@ class DeployView(discord.ui.View):
             for item in self.children: item.disabled = True
             await interaction.response.edit_message(view=self)
             
-            await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_user_ids)} điệp viên tới `{self.selected_guild.name}`...**")
+            await interaction.followup.send(
+                f"🚀 **Bắt đầu triển khai {len(self.selected_user_ids)} điệp viên tới {len(self.selected_guild_ids)} server...**"
+            )
             
-            success_count, fail_count, failed_users = 0, 0, []
-            for user_id in self.selected_user_ids:
-                access_token = get_user_access_token(user_id)
-                if not access_token:
-                    fail_count += 1
-                    failed_users.append(f"<@{user_id}> (Không có token)")
+            success_count, fail_count, failed_adds = 0, 0, []
+            
+            for guild_id in self.selected_guild_ids:
+                guild = bot.get_guild(guild_id)
+                if not guild:
+                    fail_count += len(self.selected_user_ids)
+                    failed_adds.append(f"Tất cả agents -> Server ID `{guild_id}` (Không tìm thấy hoặc bot không ở trong server)")
                     continue
-                
-                try:
-                    success, message = await add_member_to_guild(self.selected_guild.id, user_id, access_token)
-                    if success:
-                        success_count += 1
-                    else:
+                    
+                for user_id in self.selected_user_ids:
+                    access_token = get_user_access_token(user_id)
+                    if not access_token:
                         fail_count += 1
-                        failed_users.append(f"<@{user_id}> ({message[:50]})")
-                except Exception as e:
-                    fail_count += 1
-                    failed_users.append(f"<@{user_id}> (Lỗi: {e})")
+                        failed_adds.append(f"<@{user_id}> -> `{guild.name}` (Không có token)")
+                        continue
+                    
+                    try:
+                        success, message = await add_member_to_guild(guild.id, user_id, access_token)
+                        if success:
+                            success_count += 1
+                        else:
+                            fail_count += 1
+                            failed_adds.append(f"<@{user_id}> -> `{guild.name}` ({message[:50]})")
+                    except Exception as e:
+                        fail_count += 1
+                        failed_adds.append(f"<@{user_id}> -> `{guild.name}` (Lỗi: {e})")
             
-            embed = discord.Embed(title=f"Báo Cáo Triển Khai tới {self.selected_guild.name}", color=0x00ff00)
-            embed.add_field(name="✅ Thành Công", value=f"{success_count} điệp viên", inline=True)
-            embed.add_field(name="❌ Thất Bại", value=f"{fail_count} điệp viên", inline=True)
-            if failed_users:
-                embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
+            embed = discord.Embed(title=f"Báo Cáo Triển Khai Hàng Loạt", color=0x00ff00)
+            embed.add_field(name="✅ Lượt Thêm Thành Công", value=f"{success_count}", inline=True)
+            embed.add_field(name="❌ Lượt Thêm Thất Bại", value=f"{fail_count}", inline=True)
+            
+            if failed_adds:
+                # Giới hạn chi tiết lỗi để không vượt quá giới hạn của Discord Embed
+                error_details = "\n".join(failed_adds)
+                if len(error_details) > 1024:
+                    error_details = error_details[:1020] + "\n..."
+                embed.add_field(name="Chi tiết thất bại", value=error_details, inline=False)
+                
             await interaction.followup.send(embed=embed)
 
         deploy_button.callback = deploy_callback
@@ -2580,6 +2620,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
