@@ -591,90 +591,164 @@ class RosterPages(discord.ui.View):
 
 class DeployView(discord.ui.View):
     def __init__(self, author: discord.User, guilds: list[discord.Guild], agents: list[dict]):
-        super().__init__(timeout=300)
+        super().__init__(timeout=600) # Tăng thời gian chờ
         self.author = author
-        self.guilds = guilds
-        self.agents = agents
+        
+        # Chia dữ liệu thành các trang
+        self.guild_pages = [guilds[i:i + 25] for i in range(0, len(guilds), 25)]
+        self.agent_pages = [agents[i:i + 25] for i in range(0, len(agents), 25)]
+        
+        # Theo dõi trang hiện tại
+        self.current_guild_page = 0
+        self.current_agent_page = 0
+        
+        # Lưu trữ lựa chọn của người dùng
         self.selected_guild = None
         self.selected_user_ids = set()
 
-        # Tạo menu chọn Server (chỉ chọn 1, có phân trang)
-        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
-        for index, chunk in enumerate(guild_chunks):
-            self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
+        # Gọi hàm để xây dựng giao diện ban đầu
+        self.update_view()
 
-        # Tạo các menu chọn User (chọn nhiều, có phân trang)
-        agent_chunks = [self.agents[i:i + 25] for i in range(0, len(self.agents), 25)]
-        row_offset = len(guild_chunks) 
-        for index, chunk in enumerate(agent_chunks):
-            self.add_item(self.create_user_select(chunk, index, len(agent_chunks), row_offset))
+    def update_view(self):
+        """Xóa các thành phần cũ và dựng lại giao diện dựa trên trang hiện tại."""
+        self.clear_items() # Xóa tất cả các nút và menu cũ
 
-    def create_guild_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
-        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
-        placeholder = f"Bước 1: Chọn Server (Trang {page_index + 1}/{total_pages})"
+        # --- Tạo menu chọn Server ---
+        guild_options = [
+            discord.SelectOption(label=g.name, value=str(g.id), default=(self.selected_guild and g.id == self.selected_guild.id)) 
+            for g in self.guild_pages[self.current_guild_page]
+        ]
+        guild_placeholder = f"Bước 1: Chọn Server (Trang {self.current_guild_page + 1}/{len(self.guild_pages)})"
+        guild_select = discord.ui.Select(placeholder=guild_placeholder, options=guild_options, row=0)
         
-        select = discord.ui.Select(placeholder=placeholder, options=options, row=page_index)
-        
-        async def callback(interaction: discord.Interaction):
-            if interaction.user.id != self.author.id:
-                return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
-            self.selected_guild = discord.utils.get(self.guilds, id=int(interaction.data["values"][0]))
+        async def guild_callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id: return
+            guild_id = int(interaction.data["values"][0])
+            self.selected_guild = bot.get_guild(guild_id)
             await interaction.response.send_message(f"✅ Đã chọn server: **{self.selected_guild.name}**", ephemeral=True)
-        
-        select.callback = callback
-        return select
+            # Cập nhật lại view để hiển thị lựa chọn mặc định
+            self.update_view()
+            await interaction.message.edit(view=self)
 
-    def create_user_select(self, agent_chunk: list[dict], page_index: int, total_pages: int, row_offset: int):
-        options = [discord.SelectOption(label=str(agent.get('username', agent.get('id'))), value=str(agent.get('id'))) for agent in agent_chunk]
-        placeholder = f"Bước 2: Chọn Điệp viên (Trang {page_index + 1}/{total_pages})"
-        
-        select = discord.ui.Select(placeholder=placeholder, min_values=1, max_values=len(options), options=options, row=row_offset + page_index)
+        guild_select.callback = guild_callback
+        self.add_item(guild_select)
 
-        async def callback(interaction: discord.Interaction):
-            if interaction.user.id != self.author.id:
-                return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
+        # --- Tạo các nút điều hướng cho Server ---
+        # Chỉ thêm nút nếu có nhiều hơn 1 trang
+        if len(self.guild_pages) > 1:
+            prev_guild_button = discord.ui.Button(label="◀️ Server Trước", style=discord.ButtonStyle.secondary, row=1, disabled=(self.current_guild_page == 0))
+            next_guild_button = discord.ui.Button(label="Server Tiếp ▶️", style=discord.ButtonStyle.secondary, row=1, disabled=(self.current_guild_page >= len(self.guild_pages) - 1))
+
+            async def prev_guild_callback(interaction: discord.Interaction):
+                if interaction.user.id != self.author.id: return
+                self.current_guild_page -= 1
+                self.update_view()
+                await interaction.response.edit_message(view=self)
             
-            ids_in_this_menu = {int(opt.value) for opt in select.options}
-            self.selected_user_ids.difference_update(ids_in_this_menu)
+            async def next_guild_callback(interaction: discord.Interaction):
+                if interaction.user.id != self.author.id: return
+                self.current_guild_page += 1
+                self.update_view()
+                await interaction.response.edit_message(view=self)
+            
+            prev_guild_button.callback = prev_guild_callback
+            next_guild_button.callback = next_guild_callback
+            self.add_item(prev_guild_button)
+            self.add_item(next_guild_button)
+
+        # --- Tạo menu chọn Điệp viên ---
+        agent_options = [
+            discord.SelectOption(
+                label=str(agent.get('username', agent.get('id'))), 
+                value=str(agent.get('id')),
+                default=(int(agent.get('id')) in self.selected_user_ids) # Đánh dấu các agent đã chọn
+            ) for agent in self.agent_pages[self.current_agent_page]
+        ]
+        agent_placeholder = f"Bước 2: Chọn Điệp viên (Trang {self.current_agent_page + 1}/{len(self.agent_pages)})"
+        agent_select = discord.ui.Select(placeholder=agent_placeholder, min_values=0, max_values=len(agent_options), options=agent_options, row=2)
+
+        async def agent_callback(interaction: discord.Interaction):
+            if interaction.user.id != self.author.id: return
+            
+            # Xóa các lựa chọn cũ từ trang này để không bị trùng lặp khi người dùng bỏ chọn
+            ids_on_this_page = {int(opt.value) for opt in agent_options}
+            self.selected_user_ids.difference_update(ids_on_this_page)
+            
+            # Thêm các lựa chọn mới
             for uid in interaction.data["values"]:
                 self.selected_user_ids.add(int(uid))
-
-            await interaction.response.send_message(f"✅ Cập nhật! Đã chọn **{len(self.selected_user_ids)}** điệp viên.", ephemeral=True)
-        
-        select.callback = callback
-        return select
-
-    @discord.ui.button(label="Triển Khai", style=discord.ButtonStyle.danger, emoji="🚀", row=4)
-    async def deploy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.author.id:
-            return await interaction.response.send_message("Bạn không có quyền.", ephemeral=True)
-        if not self.selected_guild:
-            return await interaction.response.send_message("Lỗi: Vui lòng chọn Server.", ephemeral=True)
-        if not self.selected_user_ids:
-            return await interaction.response.send_message("Lỗi: Vui lòng chọn ít nhất một Điệp viên.", ephemeral=True)
-        
-        for item in self.children: item.disabled = True
-        await interaction.response.edit_message(view=self)
-        await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_user_ids)} điệp viên tới `{self.selected_guild.name}`...**")
-
-        success_count, fail_count, failed_users = 0, 0, []
-        for user_id in self.selected_user_ids:
-            access_token = get_user_access_token(user_id)
-            if not access_token:
-                fail_count += 1; failed_users.append(f"<@{user_id}> (Không có token)"); continue
+                
+            # Cập nhật lại view để hiển thị đúng các lựa chọn
+            self.update_view()
+            await interaction.response.edit_message(view=self)
+            await interaction.followup.send(f"✅ Cập nhật! Đã chọn **{len(self.selected_user_ids)}** điệp viên.", ephemeral=True)
             
-            try:
-                success, message = await add_member_to_guild(self.selected_guild.id, user_id, access_token)
-                if success: success_count += 1
-                else: fail_count += 1; failed_users.append(f"<@{user_id}> ({message[:50]})")
-            except Exception as e:
-                fail_count += 1; failed_users.append(f"<@{user_id}> (Lỗi: {e})")
+        agent_select.callback = agent_callback
+        self.add_item(agent_select)
+        
+        # --- Tạo các nút điều hướng cho Điệp viên ---
+        # Chỉ thêm nút nếu có nhiều hơn 1 trang
+        if len(self.agent_pages) > 1:
+            prev_agent_button = discord.ui.Button(label="◀️ Điệp viên Trước", style=discord.ButtonStyle.secondary, row=3, disabled=(self.current_agent_page == 0))
+            next_agent_button = discord.ui.Button(label="Điệp viên Tiếp ▶️", style=discord.ButtonStyle.secondary, row=3, disabled=(self.current_agent_page >= len(self.agent_pages) - 1))
 
-        embed = discord.Embed(title=f"Báo Cáo Triển Khai tới {self.selected_guild.name}", color=0x00ff00)
-        embed.add_field(name="✅ Thành Công", value=f"{success_count} điệp viên", inline=True)
-        embed.add_field(name="❌ Thất Bại", value=f"{fail_count} điệp viên", inline=True)
-        if failed_users: embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
-        await interaction.followup.send(embed=embed)
+            async def prev_agent_callback(interaction: discord.Interaction):
+                if interaction.user.id != self.author.id: return
+                self.current_agent_page -= 1
+                self.update_view()
+                await interaction.response.edit_message(view=self)
+
+            async def next_agent_callback(interaction: discord.Interaction):
+                if interaction.user.id != self.author.id: return
+                self.current_agent_page += 1
+                self.update_view()
+                await interaction.response.edit_message(view=self)
+
+            prev_agent_button.callback = prev_agent_callback
+            next_agent_button.callback = next_agent_callback
+            self.add_item(prev_agent_button)
+            self.add_item(next_agent_button)
+
+        # --- Nút hành động cuối cùng ---
+        deploy_button = discord.ui.Button(label=f"Triển Khai ({len(self.selected_user_ids)} điệp viên)", style=discord.ButtonStyle.danger, emoji="🚀", row=4, disabled=(not self.selected_guild or not self.selected_user_ids))
+        
+        async def deploy_callback(interaction: discord.Interaction, button: discord.ui.Button):
+            if interaction.user.id != self.author.id: return
+            
+            # Vô hiệu hóa view
+            for item in self.children: item.disabled = True
+            await interaction.response.edit_message(view=self)
+            
+            await interaction.followup.send(f"🚀 **Bắt đầu triển khai {len(self.selected_user_ids)} điệp viên tới `{self.selected_guild.name}`...**")
+            
+            success_count, fail_count, failed_users = 0, 0, []
+            for user_id in self.selected_user_ids:
+                access_token = get_user_access_token(user_id)
+                if not access_token:
+                    fail_count += 1
+                    failed_users.append(f"<@{user_id}> (Không có token)")
+                    continue
+                
+                try:
+                    success, message = await add_member_to_guild(self.selected_guild.id, user_id, access_token)
+                    if success:
+                        success_count += 1
+                    else:
+                        fail_count += 1
+                        failed_users.append(f"<@{user_id}> ({message[:50]})")
+                except Exception as e:
+                    fail_count += 1
+                    failed_users.append(f"<@{user_id}> (Lỗi: {e})")
+            
+            embed = discord.Embed(title=f"Báo Cáo Triển Khai tới {self.selected_guild.name}", color=0x00ff00)
+            embed.add_field(name="✅ Thành Công", value=f"{success_count} điệp viên", inline=True)
+            embed.add_field(name="❌ Thất Bại", value=f"{fail_count} điệp viên", inline=True)
+            if failed_users:
+                embed.add_field(name="Chi tiết thất bại", value="\n".join(failed_users), inline=False)
+            await interaction.followup.send(embed=embed)
+
+        deploy_button.callback = deploy_callback
+        self.add_item(deploy_button)
 
 # --- Modal 1: Nhập số lượng kênh ---
 # --- View để chọn số lượng kênh ---
@@ -1451,7 +1525,6 @@ async def deploy(ctx):
     if not agents:
         return await ctx.send("Không có điệp viên nào trong mạng lưới để triển khai.")
 
-    # Lấy danh sách server mà bot đang ở
     guilds = bot.guilds
     
     view = DeployView(ctx.author, guilds, agents)
@@ -2502,6 +2575,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
