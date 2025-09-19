@@ -712,7 +712,7 @@ class DeployView(discord.ui.View):
         # --- Nút hành động cuối cùng ---
         deploy_button = discord.ui.Button(label=f"Triển Khai ({len(self.selected_user_ids)} điệp viên)", style=discord.ButtonStyle.danger, emoji="🚀", row=4, disabled=(not self.selected_guild or not self.selected_user_ids))
         
-        async def deploy_callback(interaction: discord.Interaction, button: discord.ui.Button):
+        async def deploy_callback(interaction: discord.Interaction):
             if interaction.user.id != self.author.id: return
             
             # Vô hiệu hóa view
@@ -2575,6 +2575,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
