@@ -1525,7 +1525,7 @@ async def deploy(ctx):
     if not agents:
         return await ctx.send("Không có điệp viên nào trong mạng lưới để triển khai.")
 
-    guilds = bot.guilds
+    guilds = sorted(bot.guilds, key=lambda g: g.me.joined_at)
     
     view = DeployView(ctx.author, guilds, agents)
     
@@ -1554,7 +1554,12 @@ async def create(ctx):
 @commands.is_owner()
 async def getid(ctx):
     """Mở giao diện để tìm ID kênh."""
-    view = GetChannelIdView(ctx.author, bot.guilds)
+    # Sắp xếp danh sách server theo ngày bot tham gia (từ cũ nhất -> mới nhất)
+    sorted_guilds = sorted(bot.guilds, key=lambda g: g.me.joined_at)
+    
+    # Truyền danh sách đã sắp xếp vào View
+    view = GetChannelIdView(ctx.author, sorted_guilds)
+    
     embed = discord.Embed(
         title="🔎 Công Cụ Tìm ID Kênh",
         description="Sử dụng menu bên dưới để chọn server và nhập tên kênh cần tìm.",
@@ -2575,6 +2580,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
