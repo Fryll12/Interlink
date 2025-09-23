@@ -911,73 +911,121 @@ class NamesModal(discord.ui.Modal):
         await interaction.followup.send(f"**Báo cáo hoàn tất:**\n✅ Đã tạo thành công: **{total_success}** kênh.\n❌ Thất bại: **{total_fail}** kênh.")
 
 # --- View để chọn server và bắt đầu quy trình ---
-class CreateChannelView(discord.ui.View):
-    def __init__(self, author: discord.User, guilds: list[discord.Guild]):
-        super().__init__(timeout=300)
-        self.author = author
-        self.guilds = guilds
-        self.selected_guild_ids = set() # Sử dụng set để lưu ID, tránh trùng lặp
+# ----------------- CREATE VIEW -----------------
+class CreateServerSelectView(discord.ui.View):
+    def __init__(self, ctx, all_servers, selected_servers=None):
+        super().__init__()
+        self.ctx = ctx
+        self.all_servers = sorted(all_servers, key=lambda g: g.joined_at)
+        self.selected_servers = selected_servers if selected_servers is not None else []
+        self.current_page = 0
+        self.page_size = 25
+        self.max_pages = (len(self.all_servers) + self.page_size - 1) // self.page_size
+        self.message = None
+        self.add_item(self.create_select())
+        self.update_buttons()
 
-        # Chia danh sách server thành các phần nhỏ, mỗi phần tối đa 25 server
-        guild_chunks = [self.guilds[i:i + 25] for i in range(0, len(self.guilds), 25)]
+    def create_select(self):
+        start = self.current_page * self.page_size
+        end = start + self.page_size
+        page_servers = self.all_servers[start:end]
 
-        # Tạo một menu thả xuống (Select) cho mỗi phần
-        for index, chunk in enumerate(guild_chunks):
-            self.add_item(self.create_guild_select(chunk, index, len(guild_chunks)))
-
-    def create_guild_select(self, guild_chunk: list[discord.Guild], page_index: int, total_pages: int):
-        options = [discord.SelectOption(label=g.name, value=str(g.id)) for g in guild_chunk]
-        
-        placeholder_text = f"Chọn server (Trang {page_index + 1}/{total_pages})"
-        if not options:
-            return # Không thêm menu nếu không có server
+        options = []
+        for guild in page_servers:
+            options.append(
+                discord.SelectOption(
+                    label=guild.name,
+                    value=str(guild.id),
+                    description=f"{len(guild.members)} thành viên",
+                    default=guild.id in self.selected_servers
+                )
+            )
 
         select = discord.ui.Select(
-            placeholder=placeholder_text,
-            options=options,
-            min_values=1,
+            placeholder=f"Chọn Server (Trang {self.current_page + 1}/{self.max_pages})",
+            min_values=0,
             max_values=len(options),
-            # custom_id giúp phân biệt các menu nếu cần, nhưng ở đây không bắt buộc
-            custom_id=f"guild_select_page_{page_index}" 
+            options=options,
         )
-
-        async def guild_callback(interaction: discord.Interaction):
-            if interaction.user.id != self.author.id: 
-                return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
-            
-            # Cập nhật tập hợp các ID đã chọn
-            # Xóa các lựa chọn cũ từ menu này và thêm các lựa chọn mới
-            # Điều này cho phép người dùng thay đổi ý định
-            ids_in_this_menu = {int(opt.value) for opt in select.options}
-            self.selected_guild_ids.difference_update(ids_in_this_menu)
-            
-            for gid in interaction.data["values"]:
-                self.selected_guild_ids.add(int(gid))
-
-            await interaction.response.send_message(f"✅ Đã cập nhật lựa chọn! Hiện tại đã chọn **{len(self.selected_guild_ids)}** server.", ephemeral=True)
-        
-        select.callback = guild_callback
+        select.callback = self.select_callback
         return select
 
-    @discord.ui.button(label="Bước 2: Chọn Số Lượng Kênh", style=discord.ButtonStyle.success, row=4)
-    async def open_quantity_view(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.author.id: 
-            return await interaction.response.send_message("❌ Chỉ người tạo lệnh mới có thể sử dụng!", ephemeral=True)
-            
-        if not self.selected_guild_ids:
-            return await interaction.response.send_message("❌ Lỗi: Vui lòng chọn ít nhất một Server từ menu trước!", ephemeral=True)
-        
-        # Lấy các đối tượng guild từ các ID đã chọn
-        selected_guilds = [g for g in self.guilds if g.id in self.selected_guild_ids]
+    async def select_callback(self, interaction: discord.Interaction):
+        selected_ids = [int(v) for v in interaction.data.get('values', [])]
+        self.selected_servers = selected_ids
+        self.clear_items()
+        self.add_item(self.create_select())
+        self.update_buttons()
+        await interaction.response.edit_message(view=self)
 
-        embed = discord.Embed(
-            title="🔢 Chọn Số Lượng Kênh",
-            description=f"Bạn đã chọn **{len(selected_guilds)}** server.\nHãy chọn số lượng kênh muốn tạo:",
-            color=0x00ff00
+    @discord.ui.button(label="Trang Trước", style=discord.ButtonStyle.secondary, row=1)
+    async def previous_page_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.clear_items()
+            self.add_item(self.create_select())
+            self.update_buttons()
+            await interaction.response.edit_message(view=self)
+        else:
+            await interaction.response.send_message("Đây là trang đầu tiên.", ephemeral=True)
+
+    @discord.ui.button(label="Trang Sau", style=discord.ButtonStyle.secondary, row=1)
+    async def next_page_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.max_pages - 1:
+            self.current_page += 1
+            self.clear_items()
+            self.add_item(self.create_select())
+            self.update_buttons()
+            await interaction.response.edit_message(view=self)
+        else:
+            await interaction.response.send_message("Đây là trang cuối cùng.", ephemeral=True)
+
+    def update_buttons(self):
+        self.previous_page_button.disabled = self.current_page == 0
+        self.next_page_button.disabled = self.current_page == self.max_pages - 1
+        
+    @discord.ui.button(label="Tạo link", style=discord.ButtonStyle.green, row=2)
+    async def create_link_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        if not self.selected_servers:
+            await interaction.followup.send("Bạn chưa chọn server nào cả.", ephemeral=True)
+            return
+
+        selected_guild_ids = [str(gid) for gid in self.selected_servers]
+        guilds_name = [self.ctx.bot.get_guild(int(gid)).name for gid in selected_guild_ids]
+
+        oauth_url_base = f"https://discord.com/oauth2/authorize?client_id={CLIENT_ID}&permissions=8&response_type=code&scope=bot"
+
+        urls = [
+            f"{oauth_url_base}&guild_id={gid}&disable_guild_select=true" for gid in selected_guild_ids
+        ]
+        
+        message_text = f"Đã chọn **{len(selected_guild_ids)}** server:\n" + "\n".join(
+            [f"- {name}" for name in guilds_name]
         )
         
-        view = QuantityView(selected_guilds, self.author)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        message_text += f"\n\n**Mời bot vào các server đã chọn:**\n"
+        for i, url in enumerate(urls):
+            message_text += f"- [{guilds_name[i]}]({url})\n"
+        
+        await interaction.followup.send(message_text, ephemeral=True)
+
+class CreateView(discord.ui.View):
+    def __init__(self, ctx):
+        super().__init__()
+        self.ctx = ctx
+
+    @discord.ui.button(label="Tạo link Mời Bot", style=discord.ButtonStyle.primary)
+    async def create_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        all_guilds = self.ctx.bot.guilds
+        if not all_guilds:
+            await interaction.followup.send("Bot chưa được thêm vào server nào.", ephemeral=True)
+            return
+
+        view = CreateServerSelectView(self.ctx, all_guilds)
+        await interaction.followup.send("Chọn server bạn muốn tạo link mời bot:", view=view, ephemeral=True)
+        view.message = await interaction.original_response()
 
 # --- Getid ---
 class ChannelNameModal(discord.ui.Modal, title="Nhập Tên Kênh Cần Tìm"):
@@ -2620,6 +2668,7 @@ if __name__ == '__main__':
         print("🔄 Keeping web server alive...")
         while True:
             time.sleep(60)
+
 
 
 
